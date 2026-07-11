@@ -231,15 +231,26 @@ execute(RSOutput *output, RSFilter *filter)
 	{
 		gint col;
 		response = rs_filter_get_image(filter, request);
-		RS_IMAGE16 *image = rs_filter_response_get_image(response);
+		RS_IMAGE16 *image = response ? rs_filter_response_get_image(response) : NULL;
+
+		/* Rendu nul ou format inattendu : échec propre (fermeture du TIFF, libération)
+		   au lieu de déréférencer NULL ou d'écrire de travers — et sans fuir le TIFF
+		   ouvert / la réponse (l'ancien g_return_val_if_fail sortait en les laissant). */
+		if (!image || image->channels != 3 || image->pixelsize != 4)
+		{
+			if (image)
+				g_object_unref(image);
+			if (response)
+				g_object_unref(response);
+			g_object_unref(request);
+			TIFFClose(tiff);
+			return FALSE;
+		}
+
 		rs_tiff_generic_init(tiff, image->w, image->h, 3, profile, tifffile->uncompressed);
 		gushort *line = g_new(gushort, image->w*3);
 
-		g_return_val_if_fail(image->channels == 3, FALSE);
-		g_return_val_if_fail(image->pixelsize == 4, FALSE);
-
 		TIFFSetField(tiff, TIFFTAG_BITSPERSAMPLE, 16);
-		printf("pixelsize: %d\n", image->pixelsize);
 		rs_io_lock();
 		for(row=0;row<image->h;row++)
 		{
@@ -261,7 +272,15 @@ execute(RSOutput *output, RSFilter *filter)
 	{
 		gint col;
 		response = rs_filter_get_image8(filter, request);
-		GdkPixbuf *pixbuf = rs_filter_response_get_image8(response);
+		GdkPixbuf *pixbuf = response ? rs_filter_response_get_image8(response) : NULL;
+		if (!pixbuf)
+		{
+			if (response)
+				g_object_unref(response);
+			g_object_unref(request);
+			TIFFClose(tiff);
+			return FALSE;
+		}
 		gint width = gdk_pixbuf_get_width(pixbuf);
 		gint height = gdk_pixbuf_get_height(pixbuf);
 		gint input_channels = gdk_pixbuf_get_n_channels(pixbuf);

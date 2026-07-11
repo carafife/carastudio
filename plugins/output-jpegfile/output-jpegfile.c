@@ -20,6 +20,7 @@
 #include "config.h"
 #include <rawstudio.h>
 #include <jpeglib.h>
+#include <setjmp.h>
 #include <gettext.h>
 
 /* stat() */
@@ -213,30 +214,78 @@ rs_jpeg_write_icc_profile(j_compress_ptr cinfo, const JOCTET *icc_data_ptr, guin
 	return;
 }
 
+/* Gestion d'erreur libjpeg. Le handler par défaut (jpeg_std_error) appelle
+   error_exit → exit(EXIT_FAILURE) sur toute erreur fatale : CaraStudio se FERME
+   d'un coup pendant l'export (« la bête plante bêtement », retour Almifoto). On
+   surcharge error_exit pour faire un longjmp et rendre la main à execute(), qui
+   nettoie et renvoie FALSE (export échoué, application vivante). */
+struct cs_jpeg_error_mgr
+{
+	struct jpeg_error_mgr pub;
+	jmp_buf setjmp_buffer;
+};
+
+static void
+cs_jpeg_error_exit(j_common_ptr cinfo)
+{
+	struct cs_jpeg_error_mgr *err = (struct cs_jpeg_error_mgr *) cinfo->err;
+	(*cinfo->err->output_message)(cinfo); /* trace le message sur stderr */
+	longjmp(err->setjmp_buffer, 1);
+}
+
 static gboolean
 execute(RSOutput *output, RSFilter *filter)
 {
 	RSJpegfile *jpegfile = RS_JPEGFILE(output);
 	struct jpeg_compress_struct cinfo;
-	struct jpeg_error_mgr jerr;
-	FILE * outfile;
+	struct cs_jpeg_error_mgr jerr;
+	/* volatile : lues dans le chemin d'erreur setjmp (valeur sinon indéterminée
+	   après longjmp). */
+	FILE *volatile outfile = NULL;
+	GdkPixbuf *volatile pixbuf = NULL;
+	volatile gboolean io_locked = FALSE;
 	JSAMPROW row_pointer[1];
 	gint x,y;
-	
-	
+
+
 	RSFilterRequest *request = rs_filter_request_new();
 	rs_filter_request_set_quick(RS_FILTER_REQUEST(request), FALSE);
 	rs_filter_param_set_object(RS_FILTER_PARAM(request), "colorspace", jpegfile->color_space);
 	RSFilterResponse *response = rs_filter_get_image8(filter, request);
-	
-	g_object_unref(request);
-	GdkPixbuf *pixbuf = rs_filter_response_get_image8(response);
-	g_object_unref(response);
 
-	cinfo.err = jpeg_std_error(&jerr);
+	g_object_unref(request);
+	pixbuf = response ? rs_filter_response_get_image8(response) : NULL;
+	if (response)
+		g_object_unref(response);
+
+	/* Rendu nul (mémoire, filtre en échec…) : échec propre plutôt que
+	   gdk_pixbuf_get_width(NULL). */
+	if (!pixbuf)
+		return FALSE;
+
+	cinfo.err = jpeg_std_error(&jerr.pub);
+	jerr.pub.error_exit = cs_jpeg_error_exit;
 	jpeg_create_compress(&cinfo);
+
+	/* Point de rattrapage des erreurs libjpeg (voir cs_jpeg_error_exit). */
+	if (setjmp(jerr.setjmp_buffer))
+	{
+		jpeg_destroy_compress(&cinfo);
+		if (outfile)
+			fclose(outfile);
+		if (pixbuf)
+			g_object_unref(pixbuf);
+		if (io_locked)
+			rs_io_unlock();
+		return FALSE;
+	}
+
 	if ((outfile = fopen(jpegfile->filename, "wb")) == NULL)
+	{
+		jpeg_destroy_compress(&cinfo);
+		g_object_unref(pixbuf);
 		return(FALSE);
+	}
 	jpeg_stdio_dest(&cinfo, outfile);
 	cinfo.image_width = gdk_pixbuf_get_width(pixbuf);
 	cinfo.image_height = gdk_pixbuf_get_height(pixbuf);
@@ -245,6 +294,7 @@ execute(RSOutput *output, RSFilter *filter)
 	jpeg_set_defaults(&cinfo);
 	jpeg_set_quality(&cinfo, jpegfile->quality, TRUE);
 	rs_io_lock();
+	io_locked = TRUE;
 	jpeg_start_compress(&cinfo, TRUE);
 	/* Toujours embarquer le profil ICC, y compris sRGB : sans lui, un
 	   visionneur géré-couleur ne sait pas comment interpréter le JPEG et peut
