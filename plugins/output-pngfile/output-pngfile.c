@@ -24,6 +24,7 @@
 #include <gettext.h>
 #include <png.h>
 #include <zlib.h>
+#include <setjmp.h>
 
 #define RS_TYPE_PNGFILE (rs_pngfile_type)
 #define RS_PNGFILE(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj), RS_TYPE_PNGFILE, RSPngfile))
@@ -179,7 +180,16 @@ static gboolean
 execute(RSOutput *output, RSFilter *filter)
 {
 	RSPngfile *pngfile = RS_PNGFILE(output);
-	png_bytep *row_pointers;
+
+	/* Variables lues dans le handler d'erreur setjmp ci-dessous : elles doivent
+	   être volatile (leur valeur après un longjmp est sinon indéterminée). On
+	   libère dans le handler tout ce qui est non-NULL. */
+	png_bytep *volatile row_pointers = NULL;
+	RSFilterResponse *volatile response = NULL;
+	RSFilterRequest *volatile request = NULL;
+	volatile gpointer render_ref = NULL; /* RS_IMAGE16* ou GdkPixbuf* en cours */
+	volatile gboolean io_locked = FALSE;
+
 	FILE *fp = fopen(pngfile->filename, "wb");
 	if (!fp)
 	  return FALSE;
@@ -187,14 +197,39 @@ execute(RSOutput *output, RSFilter *filter)
 	png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, (png_voidp)NULL, NULL, NULL);
 
 	if (!png_ptr)
+	{
+		fclose(fp);
 		return FALSE;
+	}
 
 	png_infop info_ptr = png_create_info_struct(png_ptr);
 	if (!info_ptr)
 	{
 		png_destroy_write_struct(&png_ptr,(png_infopp)NULL);
-       return FALSE;
-    }
+		fclose(fp);
+		return FALSE;
+	}
+
+	/* Gestion d'erreur libpng. Sans ce setjmp, la moindre erreur interne de libpng
+	   pendant l'écriture (profil ICC refusé, paramètre invalide, écriture disque…)
+	   appelle le handler par défaut qui fait abort() → CaraStudio plante d'un bloc
+	   pendant l'export (« la bête plante bêtement »). Ici on rattrape : on libère et
+	   on renvoie FALSE (export échoué mais application vivante). */
+	if (setjmp(png_jmpbuf(png_ptr)))
+	{
+		if (io_locked)
+			rs_io_unlock();
+		if (render_ref)
+			g_object_unref(render_ref);
+		png_destroy_write_struct(&png_ptr, &info_ptr);
+		fclose(fp);
+		g_free(row_pointers);
+		if (response)
+			g_object_unref(response);
+		if (request)
+			g_object_unref(request);
+		return FALSE;
+	}
 
 	png_init_io(png_ptr, fp);
 	/* set the zlib compression level */
@@ -217,15 +252,21 @@ execute(RSOutput *output, RSFilter *filter)
 			png_set_gAMA(png_ptr, info_ptr, 1.0);
 	}
 
-	RSFilterResponse *response;
-	RSFilterRequest *request = rs_filter_request_new();
+	request = rs_filter_request_new();
 	rs_filter_request_set_quick(RS_FILTER_REQUEST(request), pngfile->quick);
 	rs_filter_param_set_object(RS_FILTER_PARAM(request), "colorspace", pngfile->color_space);
 
 	if (pngfile->save16bit)
 	{
 		response = rs_filter_get_image(filter, request);
-		RS_IMAGE16 *image = rs_filter_response_get_image(response);
+		RS_IMAGE16 *image = response ? rs_filter_response_get_image(response) : NULL;
+		if (!image)
+		{
+			/* rendu nul (mémoire, filtre en échec…) : on échoue proprement plutôt
+			   que de déréférencer NULL. Passe par le handler setjmp pour le nettoyage. */
+			png_error(png_ptr, "CaraStudio : rendu 16 bits nul pour l'export PNG");
+		}
+		render_ref = image;
 
 		gint n_channels = image->pixelsize;
 		gint width = image->w;
@@ -248,13 +289,18 @@ execute(RSOutput *output, RSFilter *filter)
 		png_set_swap(png_ptr);
 #endif
 		rs_io_lock();
+		io_locked = TRUE;
 		png_write_image(png_ptr, row_pointers);
 		g_object_unref(image);
+		render_ref = NULL;
 	}
 	else  // 8 bit
 	{
 		response = rs_filter_get_image8(filter, request);
-		GdkPixbuf *pixbuf = rs_filter_response_get_image8(response);
+		GdkPixbuf *pixbuf = response ? rs_filter_response_get_image8(response) : NULL;
+		if (!pixbuf)
+			png_error(png_ptr, "CaraStudio : rendu 8 bits nul pour l'export PNG");
+		render_ref = pixbuf;
 
 		gint n_channels = gdk_pixbuf_get_n_channels (pixbuf);
 		gint width = gdk_pixbuf_get_width (pixbuf);
@@ -277,8 +323,10 @@ execute(RSOutput *output, RSFilter *filter)
 			png_set_filler(png_ptr, 0, PNG_FILLER_AFTER);
 		
 		rs_io_lock();
+		io_locked = TRUE;
 		png_write_image(png_ptr, row_pointers);
 		g_object_unref(pixbuf);
+		render_ref = NULL;
 	}
 
 	png_write_end(png_ptr, NULL);
