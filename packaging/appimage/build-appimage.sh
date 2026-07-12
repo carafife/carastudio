@@ -75,8 +75,33 @@ apt-get install -y -qq \
     build-essential autoconf automake libtool pkg-config intltool gettext \
     autopoint git libgtk-3-dev libxml2-dev liblcms2-dev libjpeg-dev \
     libtiff-dev libsqlite3-dev liblensfun-dev libgphoto2-dev libexiv2-dev \
-    libraw-dev libfftw3-dev libdbus-1-dev libpng-dev zlib1g-dev patchelf \
+    libfftw3-dev libdbus-1-dev libpng-dev zlib1g-dev patchelf \
     file ca-certificates imagemagick desktop-file-utils
+
+# --- LibRaw récente compilée depuis les sources ----------------------------
+# La base Ubuntu 20.04 ne fournit que LibRaw 0.19.5 (2019) → le support des
+# boîtiers serait GELÉ à 2019 (pas de Nikon Z, Sony A7 IV, Canon R…). Or LibRaw
+# est du C++ autonome qui se lie parfaitement contre la vieille glibc : on la
+# compile donc à jour ICI, ce qui garde la portabilité (glibc 2.31) TOUT EN
+# décodant les boîtiers modernes. C'est cette LibRaw que CaraStudio liera et que
+# linuxdeploy embarquera dans l'AppImage.
+#
+#   LIBRAW_REF : branche/tag LibRaw (dépôt GitHub officiel). "master" = tout
+#   dernier support boîtiers (idéal pour un build de diagnostic, ex. Nikon Z5 II
+#   d'Almifoto) ; pour une SORTIE stable, épingler un tag (ex. "0.21.4").
+LIBRAW_REF="${LIBRAW_REF:-master}"
+echo "== LibRaw ($LIBRAW_REF) depuis les sources =="
+git clone --depth 1 --branch "$LIBRAW_REF" https://github.com/LibRaw/LibRaw.git /root/libraw-src
+cd /root/libraw-src
+autoreconf -fi
+./configure --prefix=/usr/local --disable-static CFLAGS="-O2" CXXFLAGS="-O2"
+make -j"$(nproc)"
+make install
+ldconfig
+# CaraStudio (et pkg-config) doivent voir CETTE LibRaw, pas celle du système :
+export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+export LD_LIBRARY_PATH="/usr/local/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+echo "LibRaw embarquée : $(pkg-config --modversion libraw)"
 
 echo "== Préparation du source =="
 cd /root && tar xf cs-src.tar && cd carastudio
