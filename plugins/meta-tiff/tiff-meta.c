@@ -1876,9 +1876,35 @@ tiff_load_meta(const gchar *service, RAWFILE *rawfile, guint offset, RSMetadata 
 static gboolean
 tif_load_meta(const gchar *service, RAWFILE *rawfile, guint offset, RSMetadata *meta)
 {
+	/* load-libraw (priorité 5, exécuté AVANT ce loader) a pu pré-remplir cam_mul
+	 * avec la WB « as-shot » décodée par LibRaw — fiable pour toutes les marques,
+	 * y compris les boîtiers récents (Nikon Z5 II…). On la sauvegarde, car le
+	 * parseur MakerNote maison ci-dessous peut la ré-écrire avec une valeur
+	 * ABERRANTE quand il ne sait pas décoder le format (ex. Z5 II → cam_mul
+	 * négatif). On la restaurera dans ce cas. */
+	gdouble saved_cam_mul[4];
+	saved_cam_mul[0] = meta->cam_mul[0];
+	saved_cam_mul[1] = meta->cam_mul[1];
+	saved_cam_mul[2] = meta->cam_mul[2];
+	saved_cam_mul[3] = meta->cam_mul[3];
 
 	if (!tiff_load_meta(service, rawfile, offset, meta))
 		return FALSE;
+
+	/* LibRaw fait AUTORITÉ sur la balance des blancs : quand load-libraw a fourni un
+	 * cam_mul dans une plage physiquement saine, on l'impose, car le parseur MakerNote
+	 * maison ne sait pas décoder certains formats récents et produit des valeurs
+	 * ABERRANTES — pas forcément négatives (Nikon Z5 II : ~[0 / 1 / 7e23]), donc un
+	 * simple test « <= 0 » ne suffit pas. Un multiplicateur WB réel reste borné. */
+	#define CS_WB_SANE(x) ((x) > 0.05 && (x) < 100.0)
+	if (CS_WB_SANE(saved_cam_mul[0]) && CS_WB_SANE(saved_cam_mul[1]) && CS_WB_SANE(saved_cam_mul[2]))
+	{
+		meta->cam_mul[0] = saved_cam_mul[0];
+		meta->cam_mul[1] = saved_cam_mul[1];
+		meta->cam_mul[2] = saved_cam_mul[2];
+		meta->cam_mul[3] = saved_cam_mul[3];
+	}
+	#undef CS_WB_SANE
 
 	/* Phase One and Samsung doesn't set this */
 	if ((meta->make == MAKE_PHASEONE) || (meta->make == MAKE_SAMSUNG))

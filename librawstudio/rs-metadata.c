@@ -101,13 +101,19 @@ rs_metadata_init (RSMetadata *metadata)
 	metadata->preview_planar_config = 0;
 	metadata->preview_width = 0;
 	metadata->preview_height = 0;
-	metadata->cam_mul[0] = -1.0;
 	metadata->contrast = -1.0;
 	metadata->saturation = -1.0;
 	metadata->color_tone = -1.0;
 	metadata->focallength = -1;
-	for(i=0;i<4;i++)
-		metadata->cam_mul[i] = 1.0f;
+	/* cam_mul[0] = -1 est la SENTINELLE « balance des blancs boîtier non
+	 * renseignée » (testée par rs_photo_set_wb_from_camera). Une ancienne boucle
+	 * « for(i<4) cam_mul[i]=1.0 » écrasait cette sentinelle → cam_mul valait
+	 * toujours 1,1,1,1, la détection « WB absente » était cassée, et le metacache
+	 * stockait 1 1 1 1. On garde donc la sentinelle sur [0] et 1.0 (neutre) ailleurs. */
+	metadata->cam_mul[0] = -1.0;
+	metadata->cam_mul[1] = 1.0;
+	metadata->cam_mul[2] = 1.0;
+	metadata->cam_mul[3] = 1.0;
 	metadata->thumbnail = NULL;
 	metadata->thumbnail_rendered = FALSE;
 

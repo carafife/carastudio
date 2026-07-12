@@ -191,6 +191,51 @@ load_libraw_file(const gchar *filename)
 }
 
 /* ------------------------------------------------------------------ */
+/* Méta-loader : balance des blancs « as-shot » via LibRaw             */
+/* ------------------------------------------------------------------ */
+/*
+ * Renseigne meta->cam_mul (multiplicateurs WB du boîtier) en s'appuyant sur
+ * LibRaw, qui décode la WB de TOUTES les marques — y compris les MakerNotes
+ * récents/chiffrés que les parseurs maison (makernote_nikon/canon/…) ne savent
+ * pas lire (ex. Nikon Z5 II, dont la WB manquait → défaut faux → cast couleur).
+ *
+ * Enregistré en priorité 5 (< 10 de meta-tiff) : il s'exécute AVANT le parseur
+ * maison et renvoie FALSE pour laisser meta-tiff renseigner le reste (modèle,
+ * objectif, exposition…). Pour les boîtiers que meta-tiff sait gérer, celui-ci
+ * réécrira ensuite cam_mul (comportement inchangé) ; pour les autres, la valeur
+ * LibRaw comble le trou. libraw_open_file() suffit (pas de décodage complet).
+ */
+static gboolean
+libraw_load_meta(const gchar *service, RAWFILE *rawfile, guint offset, RSMetadata *meta)
+{
+	libraw_data_t *raw;
+
+	if (!service || !meta)
+		return FALSE;
+
+	rs_io_lock();
+	raw = libraw_init(0);
+	if (raw)
+	{
+		if (libraw_open_file(raw, service) == LIBRAW_SUCCESS)
+		{
+			const float *cm = raw->color.cam_mul;
+			if (cm[0] > 0.0f && cm[1] > 0.0f && cm[2] > 0.0f)
+			{
+				meta->cam_mul[0] = (gdouble) cm[0];               /* R  */
+				meta->cam_mul[1] = (gdouble) cm[1];               /* G1 */
+				meta->cam_mul[2] = (gdouble) cm[2];               /* B  */
+				meta->cam_mul[3] = (gdouble)((cm[3] > 0.0f) ? cm[3] : cm[1]); /* G2 */
+			}
+		}
+		libraw_close(raw);
+	}
+	rs_io_unlock();
+
+	return FALSE; /* passer la main à meta-tiff pour le reste des métadonnées */
+}
+
+/* ------------------------------------------------------------------ */
 /* Enregistrement des formats                                          */
 /* ------------------------------------------------------------------ */
 
@@ -199,6 +244,8 @@ reg(const gchar *ext, const gchar *desc)
 {
 	rs_filetype_register_loader(ext, desc, load_libraw_file,
 	                            LIBRAW_PRIORITY, RS_LOADER_FLAGS_RAW);
+	/* Même extension → aussi le méta-loader WB LibRaw (priorité 5, cf. ci-dessus) */
+	rs_filetype_register_meta_loader(ext, desc, libraw_load_meta, 5, RS_LOADER_FLAGS_RAW);
 }
 
 G_MODULE_EXPORT void

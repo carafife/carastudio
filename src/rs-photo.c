@@ -810,16 +810,22 @@ rs_photo_set_wb_from_camera(RS_PHOTO *photo, const gint snapshot)
 		rs_photo_set_wb_from_mul(photo, snapshot, photo->metadata->cam_mul, PRESET_WB_CAMERA);
 		ret = TRUE;
 	}
+	else if (photo->metadata && photo->metadata->cam_mul[R] != -1.0)
+	{
+		/* RAW : WB « as-shot » du boîtier (désormais fournie par LibRaw pour TOUTES
+		 * les marques, cf. load-libraw). Doit PRIMER sur le repli dcp-temp 5000K
+		 * ci-dessous : sinon, pour un boîtier SANS profil DCP dédié (photo->dcp
+		 * NULL — cas des boîtiers récents comme le Nikon Z5 II), la balance des
+		 * blancs restait sur un défaut faux (premul ~2/1/2) → cast vert à l'export.
+		 * S'applique aussi au cas RAW+DCP (ancien comportement conservé). */
+		rs_photo_set_wb_from_mul(photo, snapshot, photo->metadata->cam_mul, PRESET_WB_CAMERA);
+		ret = TRUE;
+	}
 	else if (!photo->dcp)
 	{
 		rs_settings_commit_start(photo->settings[snapshot]);
 		g_object_set(photo->settings[snapshot], "dcp-temp", 5000.0, "dcp-tint", 0.0, "wb_ascii", PRESET_WB_CAMERA, "recalc_temp", FALSE, NULL);
 		rs_settings_commit_stop(photo->settings[snapshot]);
-	}
-	else if (photo->metadata->cam_mul[R] != -1.0)
-	{
-		rs_photo_set_wb_from_mul(photo, snapshot, photo->metadata->cam_mul, PRESET_WB_CAMERA);
-		ret = TRUE;
 	}
 
 	return ret;
