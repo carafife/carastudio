@@ -112,15 +112,27 @@ get_image(RSFilter *filter, const RSFilterRequest *request)
 		colorspace_transform->premul[i] = 1.0f;
 	colorspace_transform->has_premul = FALSE;
 
-	if (input_space && output_space)
+	/* Récupérer le premul (WB) AVANT le test d'espaces : c'est une mise à l'échelle
+	 * par canal, indépendante des espaces couleur. */
 	{
 		gboolean is_premultiplied = FALSE;
 		rs_filter_param_get_boolean(RS_FILTER_PARAM(previous_response), "is-premultiplied", &is_premultiplied);
-
 		if (!is_premultiplied)
 			colorspace_transform->has_premul = rs_filter_param_get_float4(RS_FILTER_PARAM(request), "premul", colorspace_transform->premul);
-		rs_cmm_set_premul(colorspace_transform->cmm, colorspace_transform->premul);
+	}
+	rs_cmm_set_premul(colorspace_transform->cmm, colorspace_transform->premul);
 
+	/* Espace d'entrée inconnu (NULL) alors qu'un premul (WB) est à appliquer : à
+	 * PLEINE RÉSOLUTION (export), le param "colorspace" n'était pas propagé jusqu'ici,
+	 * si bien que la balance des blancs était SILENCIEUSEMENT sautée → cast couleur à
+	 * l'export alors que l'aperçu (résolution réduite, espace propagé) était correct.
+	 * Le premul étant indépendant des espaces, on traite l'entrée comme la sortie :
+	 * convert_colorspace16 applique alors le premul seul (matrice = identité). */
+	if (!input_space && colorspace_transform->has_premul && output_space)
+		input_space = output_space;
+
+	if (input_space && output_space)
+	{
 		/* CaraStudio : on entre dans la conversion si les espaces diffèrent OU
 		 * s'il y a un premul (WB) à appliquer. Sinon, quand l'espace embarqué
 		 * de la photo coïncide avec l'espace demandé en aval (le DCP demande du
