@@ -485,7 +485,7 @@ static const gint COPY_MASK_ALL = MASK_PROFILE|MASK_EXPOSURE|MASK_SATURATION|MAS
 	MASK_CHANNELMIXER|MASK_TCA|MASK_VIGNETTING|MASK_CURVE;
 
 /* Widgets for copy dialog */
-static GtkWidget *cb_profile, *cb_exposure, *cb_saturation, *cb_hue, *cb_contrast, *cb_whitebalance, *cb_curve, *cb_sharpen, *cb_denoise_luma, *cb_denoise_chroma, *cb_channelmixer, *cb_tca, *cb_vignetting,*cb_transform, *cb_time_offset, *cb_coordinates, *b_all_none;
+static GtkWidget *cb_profile, *cb_exposure, *cb_saturation, *cb_hue, *cb_contrast, *cb_whitebalance, *cb_curve, *cb_sharpen, *cb_denoise_luma, *cb_denoise_chroma, *cb_channelmixer, *cb_tca, *cb_vignetting,*cb_transform, *b_all_none;
 
 static void
 all_none_clicked(GtkButton *button, gpointer user_data)
@@ -519,8 +519,10 @@ create_copy_dialog(gint mask)
 	cb_vignetting = gtk_check_button_new_with_label (_("Vignetting"));
 	cb_curve = gtk_check_button_new_with_label (_("Curve"));
 	cb_transform = gtk_check_button_new_with_label (_("Transform"));
-	cb_time_offset = gtk_check_button_new_with_label (_("Time offset (GPS)"));
-	cb_coordinates = gtk_check_button_new_with_label (_("Coordinates"));
+	/* « Time offset (GPS) » et « Coordinates » : cases héritées de RawStudio dont
+	 * l'état n'a JAMAIS été lu (aucun code GPS dans l'application) — purement
+	 * décoratives et trompeuses (retour forum). Retirées. NB : les tags GPS des
+	 * fichiers restent préservés à l'export (rs_exif_copy recopie l'EXIF complet). */
 	b_all_none = gtk_button_new_with_label (_("Select All/None"));
 
 	g_signal_connect(b_all_none, "clicked", G_CALLBACK(all_none_clicked), NULL);
@@ -542,8 +544,6 @@ create_copy_dialog(gint mask)
 	gtk_box_pack_start (GTK_BOX (cb_box), cb_vignetting, FALSE, TRUE, 0);
 	gtk_box_pack_start (GTK_BOX (cb_box), cb_curve, FALSE, TRUE, 0);
 	gtk_box_pack_start (GTK_BOX (cb_box), cb_transform, FALSE, FALSE, 0);
-	gtk_box_pack_start (GTK_BOX (cb_box), cb_time_offset, FALSE, FALSE, 0);
-	gtk_box_pack_start (GTK_BOX (cb_box), cb_coordinates, FALSE, FALSE, 0);
 	gtk_box_pack_start (GTK_BOX (cb_box), b_all_none, FALSE, TRUE, 0);
 
 	dialog = gui_dialog_make_from_widget(GTK_STOCK_DIALOG_QUESTION, _("Select Settings to Copy"), cb_box);
