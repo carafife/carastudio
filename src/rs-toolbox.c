@@ -1736,7 +1736,16 @@ rs_toolbox_get_tones_widget(RSToolbox *toolbox)
 			gtk_label_new(labels[i]));
 	toolbox->tones_notebook = notebook;
 	g_signal_connect(notebook, "switch-page", G_CALLBACK(notebook_switch_page), toolbox);
-	return notebook;
+
+	/* Rendu DÉFILANT (comme l'onglet Outils) : sinon la hauteur des modules force la
+	 * fenêtre à une hauteur minimale supérieure à l'écran → débordement (barre de
+	 * titre/bas hors champ), set_default_size étant impuissant face au minimum. */
+	{
+		GtkWidget *sw = gtk_scrolled_window_new(NULL, NULL);
+		gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(sw), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+		gtk_container_add(GTK_CONTAINER(sw), notebook);
+		return sw;
+	}
 }
 
 GtkWidget *
@@ -1751,7 +1760,14 @@ rs_toolbox_get_effects_widget(RSToolbox *toolbox)
 			gtk_label_new(labels[i]));
 	toolbox->effects_notebook = notebook;
 	g_signal_connect(notebook, "switch-page", G_CALLBACK(notebook_switch_page), toolbox);
-	return notebook;
+
+	/* Rendu DÉFILANT, cf. rs_toolbox_get_tones_widget. */
+	{
+		GtkWidget *sw = gtk_scrolled_window_new(NULL, NULL);
+		gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(sw), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+		gtk_container_add(GTK_CONTAINER(sw), notebook);
+		return sw;
+	}
 }
 
 /* Normalise une chaîne pour une comparaison insensible à la casse ET aux
