@@ -1918,10 +1918,13 @@ tif_load_meta(const gchar *service, RAWFILE *rawfile, guint offset, RSMetadata *
 	if (meta->lens_min_aperture < 0 && meta->aperture > 0)
 		meta->lens_min_aperture = meta->lens_max_aperture = meta->aperture;
 
-	/* Load thumbnail - try thumbnail first - then preview image - then decode the RAW image*/
-	if (!thumbnail_reader(service, rawfile, meta->thumbnail_start, meta->thumbnail_length, meta))
-		if (!thumbnail_reader(service, rawfile, meta->preview_start, meta->preview_length, meta))
-			thumbnail_store(raw_thumbnail_reader(service, meta), meta);
+	/* Load thumbnail - try thumbnail first - then preview image - then decode the RAW image.
+	 * Sauf si load-libraw (priorité 5) a DÉJÀ posé la vignette via LibRaw : elle prime
+	 * (le parseur maison ne localise pas l'aperçu des boîtiers récents → vignette noire). */
+	if (!meta->thumbnail)
+		if (!thumbnail_reader(service, rawfile, meta->thumbnail_start, meta->thumbnail_length, meta))
+			if (!thumbnail_reader(service, rawfile, meta->preview_start, meta->preview_length, meta))
+				thumbnail_store(raw_thumbnail_reader(service, meta), meta);
 
 	return TRUE;
 }

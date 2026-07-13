@@ -227,6 +227,49 @@ libraw_load_meta(const gchar *service, RAWFILE *rawfile, guint offset, RSMetadat
 				meta->cam_mul[2] = (gdouble) cm[2];               /* B  */
 				meta->cam_mul[3] = (gdouble)((cm[3] > 0.0f) ? cm[3] : cm[1]); /* G2 */
 			}
+
+			/* Vignette : miniature embarquée décodée par LibRaw. Le parseur maison
+			 * (meta-tiff) ne sait pas localiser l'aperçu des boîtiers récents (Z5 II)
+			 * → vignette NOIRE à l'ouverture. LibRaw la fournit pour toutes les
+			 * marques. On ne pose que le cas JPEG (quasi universel) ; meta-tiff ne
+			 * réécrira pas meta->thumbnail s'il est déjà renseigné (garde ajoutée). */
+			if (!meta->thumbnail && libraw_unpack_thumb(raw) == LIBRAW_SUCCESS)
+			{
+				int errc = 0;
+				libraw_processed_image_t *timg = libraw_dcraw_make_mem_thumb(raw, &errc);
+				if (timg)
+				{
+					if (errc == 0 && timg->type == LIBRAW_IMAGE_JPEG &&
+					    timg->data_size > 0)
+					{
+						GdkPixbufLoader *ldr = gdk_pixbuf_loader_new();
+						if (gdk_pixbuf_loader_write(ldr, (const guchar *) timg->data,
+						                            timg->data_size, NULL) &&
+						    gdk_pixbuf_loader_close(ldr, NULL))
+						{
+							GdkPixbuf *p = gdk_pixbuf_loader_get_pixbuf(ldr);
+							if (p)
+							{
+								GdkPixbuf *o = gdk_pixbuf_apply_embedded_orientation(p);
+								/* Réduire les gros aperçus (certains font plusieurs
+								   milliers de px) à une taille de vignette raisonnable. */
+								gint w = gdk_pixbuf_get_width(o);
+								gint h = gdk_pixbuf_get_height(o);
+								gint m = MAX(w, h);
+								if (m > 256)
+								{
+									GdkPixbuf *s = gdk_pixbuf_scale_simple(
+										o, w * 256 / m, h * 256 / m, GDK_INTERP_BILINEAR);
+									if (s) { g_object_unref(o); o = s; }
+								}
+								meta->thumbnail = o;
+							}
+						}
+						g_object_unref(ldr);
+					}
+					libraw_dcraw_clear_mem(timg);
+				}
+			}
 		}
 		libraw_close(raw);
 	}
