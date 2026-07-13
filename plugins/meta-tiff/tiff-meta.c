@@ -1924,7 +1924,22 @@ tif_load_meta(const gchar *service, RAWFILE *rawfile, guint offset, RSMetadata *
 	if (!meta->thumbnail)
 		if (!thumbnail_reader(service, rawfile, meta->thumbnail_start, meta->thumbnail_length, meta))
 			if (!thumbnail_reader(service, rawfile, meta->preview_start, meta->preview_length, meta))
-				thumbnail_store(raw_thumbnail_reader(service, meta), meta);
+			{
+				/* Pas de miniature embarquée. Pour un vrai fichier image (TIFF/JPEG/PNG
+				 * EXPORTÉ, sans IFD miniature), on le rend DIRECTEMENT via gdk-pixbuf
+				 * (8 comme 16 bits) — sinon raw_thumbnail_reader sort une vignette NOIRE.
+				 * On ne garde le rendu RAW maison qu'en dernier recours (gdk échoue sur
+				 * un vrai RAW). */
+				GdkPixbuf *p = gdk_pixbuf_new_from_file_at_size(service, 256, 256, NULL);
+				if (p)
+				{
+					GdkPixbuf *o = gdk_pixbuf_apply_embedded_orientation(p);
+					g_object_unref(p);
+					meta->thumbnail = o;
+				}
+				else
+					thumbnail_store(raw_thumbnail_reader(service, meta), meta);
+			}
 
 	return TRUE;
 }
