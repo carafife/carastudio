@@ -1439,6 +1439,35 @@ pane_position(GtkWidget* widget, gpointer dummy, gpointer user_data)
 	return TRUE;
 }
 
+/* Pose la position du paned à la PREMIÈRE allocation réelle, puis se débranche.
+ *
+ * Impossible de la calculer depuis gui_init() : à cet instant la fenêtre n'a pas
+ * encore sa taille définitive. Mesuré sur une configuration vierge :
+ * gtk_window_get_size() renvoie 800x600 alors que la fenêtre s'ouvre maximisée.
+ * On posait donc la séparation à 800 - largeur_voulue, valeur absurde une fois la
+ * fenêtre à sa vraie largeur — d'où le panneau d'outils occupant les deux tiers
+ * de l'écran signalé sur Debian 13 (PR #20). Chez un utilisateur dont la conf
+ * existe déjà et dont la fenêtre est mesurée après maximisation, le bug est
+ * invisible : d'où sa rareté apparente.
+ */
+static void
+pane_first_allocate(GtkWidget *widget, GdkRectangle *allocation, gpointer user_data)
+{
+	gint want = GPOINTER_TO_INT(user_data);
+	gint pos;
+
+	if (!allocation || allocation->width <= 0)
+		return;
+
+	/* Laisser au moins 100 px à l'aperçu, quoi qu'il arrive. */
+	pos = allocation->width - want;
+	if (pos < 100)
+		pos = 100;
+
+	gtk_paned_set_position(GTK_PANED(widget), pos);
+	g_signal_handlers_disconnect_by_func(widget, pane_first_allocate, user_data);
+}
+
 static void
 directory_activated(gpointer instance, const gchar *path, RS_BLOB *rs)
 {
@@ -2017,12 +2046,12 @@ gui_init(int argc, char **argv, RS_BLOB *rs)
 		rs_core_action_group_activate("Toolbox");
 
 	gtk_widget_show_all (rs->window);
-	toolbox_width = 240;
+	toolbox_width = 410;
 	rs_conf_get_integer(CONF_TOOLBOX_WIDTH, &toolbox_width);
 	/* Borne de sécurité : une conf corrompue (largeur ≈ 0) escamoterait le
 	   panneau d'outils sans retour possible. On revient au défaut si hors plage. */
 	if (toolbox_width < 150 || toolbox_width > 1200)
-		toolbox_width = 240;
+		toolbox_width = 410;
 	gdk_threads_enter();
 	GTK_CATCHUP();
 	gdk_threads_leave();
@@ -2044,7 +2073,6 @@ gui_init(int argc, char **argv, RS_BLOB *rs)
 		rs_conf_get_boolean_with_default(CONF_SHOW_ICONBOX_FULLSCREEN, &show_iconbox, show_iconbox_default);
 		rs_conf_get_boolean_with_default(CONF_SHOW_TOOLBOX_FULLSCREEN, &show_toolbox, show_toolbox_default);
 		gtk_window_get_size(rawstudio_window, &window_width, NULL);
-		gtk_paned_set_position(GTK_PANED(pane), window_width - toolbox_width);
 	}
 	else
 	{
@@ -2052,8 +2080,12 @@ gui_init(int argc, char **argv, RS_BLOB *rs)
 		rs_conf_get_boolean_with_default(CONF_SHOW_TOOLBOX, &show_toolbox, DEFAULT_CONF_SHOW_ICONBOX);
 		gtk_window_unfullscreen(GTK_WINDOW(rs->window));
 		gtk_window_get_size(rawstudio_window, &window_width, NULL);
-		gtk_paned_set_position(GTK_PANED(pane), window_width - toolbox_width);
 	}
+
+	/* Position posée à la première allocation réelle du paned, pas maintenant :
+	   la fenêtre n'a pas encore sa taille définitive (cf. pane_first_allocate). */
+	g_signal_connect(pane, "size-allocate",
+		G_CALLBACK(pane_first_allocate), GINT_TO_POINTER(toolbox_width));
 
 	if (argc > 1)
 	{
