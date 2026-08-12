@@ -1,6 +1,6 @@
 dnl Process this file with autoconf to produce a configure script.
 
-AC_INIT([carastudio],[2026.08.1])
+AC_INIT([carastudio],[2026.08.2])
 dnl Scripts auxiliaires (install-sh, missing, depcomp…) dans build-aux/ :
 dnl sinon automake trouve notre script utilisateur install.sh à la racine et
 dnl le prend pour une relique de son install-sh (« anachronism »), ce qui

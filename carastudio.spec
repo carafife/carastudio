@@ -1,6 +1,6 @@
 
 Name:           carastudio
-Version:        2026.08.1
+Version:        2026.08.2
 Release:        1%{?dist}
 Summary:        Convivial raw photo developer (a beefed-up fork of RawStudio)
 
@@ -92,6 +92,17 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop || :
 %{_datadir}/pixmaps/%{name}/
 
 %changelog
+* Tue Aug 12 2026 Carafife <carafife@users.noreply.github.com> - 2026.08.2-1
+- Balance des couleurs : les roues sont plus grandes et redessinées, avec un
+  anneau chromatique extérieur et un centre qui s'éclaircit vers le blanc.
+- Balance des couleurs : la direction de teinte choisie est désormais mémorisée
+  même lorsque l'intensité est ramenée à zéro, et un repère reste visible sur
+  l'anneau. Elle est conservée d'une session à l'autre.
+- Panneau d'outils : la séparation est posée à l'allocation réelle de la
+  fenêtre, plus de largeur incohérente à l'ouverture.
+- Correction de messages Gtk-CRITICAL émis à la fermeture d'une photo lorsque
+  certains curseurs n'étaient pas encore construits.
+
 * Sun Aug 09 2026 Carafife <carafife@users.noreply.github.com> - 2026.08.1-1
 - Thèmes d'interface : sélecteur dans les Préférences (CaraStudio, Studio
   Anthracite, Studio Clair, Studio Ambre), appliqué à chaud sans redémarrage.
