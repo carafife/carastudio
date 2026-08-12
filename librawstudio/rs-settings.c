@@ -106,12 +106,15 @@ enum {
 	PROP_CW_SHADOWS_X,
 	PROP_CW_SHADOWS_Y,
 	PROP_CW_SHADOWS_LUM,
+	PROP_CW_SHADOWS_HUE,
 	PROP_CW_MID_X,
 	PROP_CW_MID_Y,
 	PROP_CW_MID_LUM,
+	PROP_CW_MID_HUE,
 	PROP_CW_HIGH_X,
 	PROP_CW_HIGH_Y,
 	PROP_CW_HIGH_LUM,
+	PROP_CW_HIGH_HUE,
 	/* Égaliseur de couleurs (color zones) */
 	PROP_HSL_ENABLED,
 	PROP_HSL_HUE_CURVE,
@@ -422,6 +425,11 @@ rs_settings_class_init (RSSettingsClass *klass)
 			-1.0, 1.0, 0.0, G_PARAM_READWRITE)
 	);
 	g_object_class_install_property(object_class,
+		PROP_CW_SHADOWS_HUE, g_param_spec_float(
+			"cw-shadows-hue", _("Ombres teinte"), _("Color Wheel Shadows Hue (direction, degrés)"),
+			0.0, 360.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
 		PROP_CW_MID_X, g_param_spec_float(
 			"cw-mid-x", _("Médians X"), _("Color Wheel Midtones X"),
 			-1.0, 1.0, 0.0, G_PARAM_READWRITE)
@@ -437,6 +445,11 @@ rs_settings_class_init (RSSettingsClass *klass)
 			-1.0, 1.0, 0.0, G_PARAM_READWRITE)
 	);
 	g_object_class_install_property(object_class,
+		PROP_CW_MID_HUE, g_param_spec_float(
+			"cw-mid-hue", _("Médians teinte"), _("Color Wheel Midtones Hue (direction, degrés)"),
+			0.0, 360.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
 		PROP_CW_HIGH_X, g_param_spec_float(
 			"cw-high-x", _("Hautes X"), _("Color Wheel Highlights X"),
 			-1.0, 1.0, 0.0, G_PARAM_READWRITE)
@@ -450,6 +463,11 @@ rs_settings_class_init (RSSettingsClass *klass)
 		PROP_CW_HIGH_LUM, g_param_spec_float(
 			"cw-high-lum", _("Hautes luminance"), _("Color Wheel Highlights Luminance (gain)"),
 			-1.0, 1.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_CW_HIGH_HUE, g_param_spec_float(
+			"cw-high-hue", _("Hautes teinte"), _("Color Wheel Highlights Hue (direction, degrés)"),
+			0.0, 360.0, 0.0, G_PARAM_READWRITE)
 	);
 	g_object_class_install_property(object_class,
 		PROP_HSL_ENABLED, g_param_spec_boolean(
@@ -570,12 +588,15 @@ get_property(GObject *object, guint property_id, GValue *value, GParamSpec *pspe
 		CASE(CW_SHADOWS_X, cw_shadows_x);
 		CASE(CW_SHADOWS_Y, cw_shadows_y);
 		CASE(CW_SHADOWS_LUM, cw_shadows_lum);
+		CASE(CW_SHADOWS_HUE, cw_shadows_hue);
 		CASE(CW_MID_X, cw_mid_x);
 		CASE(CW_MID_Y, cw_mid_y);
 		CASE(CW_MID_LUM, cw_mid_lum);
+		CASE(CW_MID_HUE, cw_mid_hue);
 		CASE(CW_HIGH_X, cw_high_x);
 		CASE(CW_HIGH_Y, cw_high_y);
 		CASE(CW_HIGH_LUM, cw_high_lum);
+		CASE(CW_HIGH_HUE, cw_high_hue);
 	case PROP_ARGENTICO_ENABLED:
 		g_value_set_boolean(value, settings->argentico_enabled);
 		break;
@@ -710,12 +731,15 @@ set_property(GObject *object, guint property_id, const GValue *value, GParamSpec
 		CASE(CW_SHADOWS_X, cw_shadows_x);
 		CASE(CW_SHADOWS_Y, cw_shadows_y);
 		CASE(CW_SHADOWS_LUM, cw_shadows_lum);
+		CASE(CW_SHADOWS_HUE, cw_shadows_hue);
 		CASE(CW_MID_X, cw_mid_x);
 		CASE(CW_MID_Y, cw_mid_y);
 		CASE(CW_MID_LUM, cw_mid_lum);
+		CASE(CW_MID_HUE, cw_mid_hue);
 		CASE(CW_HIGH_X, cw_high_x);
 		CASE(CW_HIGH_Y, cw_high_y);
 		CASE(CW_HIGH_LUM, cw_high_lum);
+		CASE(CW_HIGH_HUE, cw_high_hue);
 	case PROP_ARGENTICO_ENABLED:
 		if (settings->argentico_enabled != g_value_get_boolean(value))
 		{
@@ -957,12 +981,15 @@ rs_settings_reset(RSSettings *settings, const RSSettingsMask mask)
 	rs_object_class_property_reset(object, "cw-shadows-x");
 	rs_object_class_property_reset(object, "cw-shadows-y");
 	rs_object_class_property_reset(object, "cw-shadows-lum");
+	rs_object_class_property_reset(object, "cw-shadows-hue");
 	rs_object_class_property_reset(object, "cw-mid-x");
 	rs_object_class_property_reset(object, "cw-mid-y");
 	rs_object_class_property_reset(object, "cw-mid-lum");
+	rs_object_class_property_reset(object, "cw-mid-hue");
 	rs_object_class_property_reset(object, "cw-high-x");
 	rs_object_class_property_reset(object, "cw-high-y");
 	rs_object_class_property_reset(object, "cw-high-lum");
+	rs_object_class_property_reset(object, "cw-high-hue");
 	rs_object_class_property_reset(object, "hsl-enabled");
 	rs_object_class_property_reset(object, "hsl-hue-curve");
 	rs_object_class_property_reset(object, "hsl-sat-curve");
@@ -1128,12 +1155,15 @@ do { \
 	SETTINGS_COPY(CW_SHADOWS_X, cw_shadows_x);
 	SETTINGS_COPY(CW_SHADOWS_Y, cw_shadows_y);
 	SETTINGS_COPY(CW_SHADOWS_LUM, cw_shadows_lum);
+	SETTINGS_COPY(CW_SHADOWS_HUE, cw_shadows_hue);
 	SETTINGS_COPY(CW_MID_X, cw_mid_x);
 	SETTINGS_COPY(CW_MID_Y, cw_mid_y);
 	SETTINGS_COPY(CW_MID_LUM, cw_mid_lum);
+	SETTINGS_COPY(CW_MID_HUE, cw_mid_hue);
 	SETTINGS_COPY(CW_HIGH_X, cw_high_x);
 	SETTINGS_COPY(CW_HIGH_Y, cw_high_y);
 	SETTINGS_COPY(CW_HIGH_LUM, cw_high_lum);
+	SETTINGS_COPY(CW_HIGH_HUE, cw_high_hue);
 	if (mask & MASK_HSL_ENABLED)
 		target->hsl_enabled = source->hsl_enabled;
 	if ((mask & MASK_HSL_HUE) && (g_strcmp0(target->hsl_hue_curve, source->hsl_hue_curve) != 0))
@@ -1322,12 +1352,15 @@ do { \
 	GRP_COPY(STYLE_COLORWHEELS, MASK_SOFTLIGHT_STRENGTH, cw_shadows_x);
 	GRP_COPY(STYLE_COLORWHEELS, MASK_SOFTLIGHT_STRENGTH, cw_shadows_y);
 	GRP_COPY(STYLE_COLORWHEELS, MASK_SOFTLIGHT_STRENGTH, cw_shadows_lum);
+	GRP_COPY(STYLE_COLORWHEELS, MASK_SOFTLIGHT_STRENGTH, cw_shadows_hue);
 	GRP_COPY(STYLE_COLORWHEELS, MASK_SOFTLIGHT_STRENGTH, cw_mid_x);
 	GRP_COPY(STYLE_COLORWHEELS, MASK_SOFTLIGHT_STRENGTH, cw_mid_y);
 	GRP_COPY(STYLE_COLORWHEELS, MASK_SOFTLIGHT_STRENGTH, cw_mid_lum);
+	GRP_COPY(STYLE_COLORWHEELS, MASK_SOFTLIGHT_STRENGTH, cw_mid_hue);
 	GRP_COPY(STYLE_COLORWHEELS, MASK_SOFTLIGHT_STRENGTH, cw_high_x);
 	GRP_COPY(STYLE_COLORWHEELS, MASK_SOFTLIGHT_STRENGTH, cw_high_y);
 	GRP_COPY(STYLE_COLORWHEELS, MASK_SOFTLIGHT_STRENGTH, cw_high_lum);
+	GRP_COPY(STYLE_COLORWHEELS, MASK_SOFTLIGHT_STRENGTH, cw_high_hue);
 
 	/* Color zones / égaliseur de couleurs (3 courbes stockées en chaîne) */
 	if ((groups & STYLE_HSL) && (target->hsl_enabled != source->hsl_enabled))

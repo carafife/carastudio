@@ -2004,6 +2004,8 @@ cw_draw(GtkWidget *widget, cairo_t *cr, gpointer data)
 	gint H = gtk_widget_get_allocated_height(widget);
 	double cx = W/2.0, cy = H/2.0;
 	double R = MIN(W, H)/2.0 - 2.0;
+	double Ri = R * 0.70;          /* bord intérieur de l'anneau chromatique */
+	double Rd = Ri - 3.0;          /* rayon du disque intérieur (petit espace) */
 	gint i;
 
 	/* Disque teinte (angle = teinte, convention algo : rouge à droite/0°,
@@ -2016,17 +2018,36 @@ cw_draw(GtkWidget *widget, cairo_t *cr, gpointer data)
 		double r, g, b;
 		cw_hsv2rgb(hue, 1.0, 1.0, &r, &g, &b);
 		cairo_move_to(cr, cx, cy);
-		cairo_arc(cr, cx, cy, R, a1, a2);
+		cairo_arc(cr, cx, cy, Rd, a1, a2);
 		cairo_close_path(cr);
 		cairo_set_source_rgb(cr, r, g, b);
 		cairo_fill(cr);
 	}
-	/* Désaturation vers le centre (gris) */
-	cairo_pattern_t *pat = cairo_pattern_create_radial(cx, cy, 0, cx, cy, R);
-	cairo_pattern_add_color_stop_rgba(pat, 0.0, 0.5, 0.5, 0.5, 1.0);
-	cairo_pattern_add_color_stop_rgba(pat, 1.0, 0.5, 0.5, 0.5, 0.0);
+
+	/* Anneau chromatique extérieur (repère de direction). */
+	for (i = 0; i < 72; i++)
+	{
+		double hue = i * 5.0;
+		double a1 = -(hue + 5.0) * M_PI/180.0;
+		double a2 = -hue * M_PI/180.0;
+		double r, g, b;
+		cw_hsv2rgb(hue, 1.0, 1.0, &r, &g, &b);
+		cairo_move_to(cr, cx + Ri*cos(a1), cy + Ri*sin(a1));
+		cairo_line_to(cr, cx + R*cos(a1),  cy + R*sin(a1));
+		cairo_arc(cr, cx, cy, R, a1, a2);
+		cairo_line_to(cr, cx + Ri*cos(a2), cy + Ri*sin(a2));
+		cairo_arc_negative(cr, cx, cy, Ri, a2, a1);
+		cairo_close_path(cr);
+		cairo_set_source_rgb(cr, r, g, b);
+		cairo_fill(cr);
+	}
+
+	/* Éclaircissement vers le centre (blanc) : disque intérieur chromatique */
+	cairo_pattern_t *pat = cairo_pattern_create_radial(cx, cy, 0, cx, cy, Rd);
+	cairo_pattern_add_color_stop_rgba(pat, 0.0, 1.0, 1.0, 1.0, 1.0);
+	cairo_pattern_add_color_stop_rgba(pat, 1.0, 1.0, 1.0, 1.0, 0.0);
 	cairo_set_source(cr, pat);
-	cairo_arc(cr, cx, cy, R, 0, 2*M_PI);
+	cairo_arc(cr, cx, cy, Rd, 0, 2*M_PI);
 	cairo_fill(cr);
 	cairo_pattern_destroy(pat);
 
@@ -2038,7 +2059,35 @@ cw_draw(GtkWidget *widget, cairo_t *cr, gpointer data)
 	cairo_move_to(cr, cx, cy-R); cairo_line_to(cr, cx, cy+R);
 	cairo_stroke(cr);
 
-	/* Point courant */
+	/* Indicateur de teinte (lié au curseur Teinte) : rayon + pastille sur
+	   l'anneau, visible même quand l'intensité vaut 0. */
+	{
+		RSToolbox *tb = cw->toolbox;
+		gdouble hue = (tb->cwhue[cw->snapshot][cw->zone])
+			? gtk_range_get_value(tb->cwhue[cw->snapshot][cw->zone]) : 0.0;
+		double a = hue * M_PI/180.0;
+		double vx = cos(a), vy = sin(a);  /* repère y vers le haut */
+		double Rm = (Ri + R) * 0.5;
+		double ix = cx + vx*Rm, iy = cy - vy*Rm;
+
+		/* fin rayon de relèvement centre → anneau (discret) */
+		cairo_set_source_rgba(cr, 0.9, 0.9, 0.9, 0.35);
+		cairo_set_line_width(cr, 1.0);
+		cairo_move_to(cr, cx, cy);
+		cairo_line_to(cr, cx + vx*R, cy - vy*R);
+		cairo_stroke(cr);
+
+		/* pastille sur l'anneau */
+		cairo_set_source_rgb(cr, 1, 1, 1);
+		cairo_arc(cr, ix, iy, 3.5, 0, 2*M_PI);
+		cairo_fill(cr);
+		cairo_set_source_rgb(cr, 0, 0, 0);
+		cairo_set_line_width(cr, 1.0);
+		cairo_arc(cr, ix, iy, 3.5, 0, 2*M_PI);
+		cairo_stroke(cr);
+	}
+
+	/* Point d'intensité (position x,y du réglage) */
 	gfloat vx, vy; cw_get_xy(cw, &vx, &vy);
 	double px = cx + vx*R, py = cy - vy*R;
 	cairo_set_source_rgb(cr, 1, 1, 1);
@@ -2103,7 +2152,7 @@ colorwheel_new(RSToolbox *toolbox, gint snapshot, gint zone, const gchar *prop_x
 	cw->toolbox = toolbox; cw->snapshot = snapshot; cw->zone = zone;
 	cw->prop_x = prop_x; cw->prop_y = prop_y;
 	GtkWidget *da = gtk_drawing_area_new();
-	gtk_widget_set_size_request(da, 86, 86);
+	gtk_widget_set_size_request(da, 108, 108);
 	gtk_widget_set_sensitive(da, FALSE);
 	gtk_widget_add_events(da, GDK_BUTTON_PRESS_MASK | GDK_BUTTON1_MOTION_MASK | GDK_POINTER_MOTION_MASK);
 	g_signal_connect(da, "draw", G_CALLBACK(cw_draw), cw);
@@ -2120,6 +2169,7 @@ colorwheel_new(RSToolbox *toolbox, gint snapshot, gint zone, const gchar *prop_x
 
 static const gchar *cwx_prop[3] = { "cw-shadows-x", "cw-mid-x", "cw-high-x" };
 static const gchar *cwy_prop[3] = { "cw-shadows-y", "cw-mid-y", "cw-high-y" };
+static const gchar *cwh_prop[3] = { "cw-shadows-hue", "cw-mid-hue", "cw-high-hue" };
 
 /* Met à jour les labels de valeur des deux curseurs d'une zone. */
 static void
@@ -2161,6 +2211,13 @@ cw_sliders_sync_from_xy(RSToolbox *toolbox, const gint snapshot,
 	gtk_range_set_value(toolbox->cwsat[snapshot][zone], r);
 	toolbox->mute_from_sliders = saved;
 
+	/* Teinte (valeur de l'angle conservée même à r = 0 → propriété dédiée) */
+	toolbox->mute_from_photo = TRUE;
+	g_object_set(toolbox->photo->settings[snapshot],
+		cwh_prop[zone],
+		(gfloat)gtk_range_get_value(toolbox->cwhue[snapshot][zone]), NULL);
+	toolbox->mute_from_photo = FALSE;
+
 	cw_slider_update_labels(toolbox, snapshot, zone);
 }
 
@@ -2180,11 +2237,13 @@ cw_slider_changed(GtkRange *range, gpointer user_data)
 
 	gdouble rad = gtk_range_get_value(toolbox->cwhue[snapshot][zone]) * M_PI / 180.0;
 	gdouble r   = gtk_range_get_value(toolbox->cwsat[snapshot][zone]);
+	gdouble hue = gtk_range_get_value(toolbox->cwhue[snapshot][zone]);
 
 	toolbox->mute_from_photo = TRUE;
 	g_object_set(toolbox->photo->settings[snapshot],
 		cwx_prop[zone], (gfloat)(r * cos(rad)),
-		cwy_prop[zone], (gfloat)(r * sin(rad)), NULL);
+		cwy_prop[zone], (gfloat)(r * sin(rad)),
+		cwh_prop[zone], (gfloat)hue, NULL);
 	toolbox->mute_from_photo = FALSE;
 
 	cw_slider_update_labels(toolbox, snapshot, zone);
@@ -2657,7 +2716,7 @@ new_tones_page(RSToolbox *toolbox, const gint snapshot)
 
 		GtkWidget *zhbox = gtk_hbox_new(FALSE, 4);
 		toolbox->colorwheel[snapshot][z] = colorwheel_new(toolbox, snapshot, z, zpx[z], zpy[z]);
-		gtk_widget_set_size_request(toolbox->colorwheel[snapshot][z], 64, 64);
+		gtk_widget_set_size_request(toolbox->colorwheel[snapshot][z], 108, 108);
 		gtk_box_pack_start(GTK_BOX(zhbox), toolbox->colorwheel[snapshot][z], FALSE, FALSE, 0);
 
 		GtkTable *ztable = GTK_TABLE(gtk_table_new(3, 5, FALSE));
@@ -2665,6 +2724,10 @@ new_tones_page(RSToolbox *toolbox, const gint snapshot)
 		toolbox->cwsat[snapshot][z] = cw_slider_new(toolbox, snapshot, ztable, 1, z, FALSE);
 		toolbox->cwlum[snapshot][z] = basic_slider(toolbox, snapshot, ztable, 2, &cwlum_def[z]);
 		cw_retitle_luminance(toolbox->cwlum[snapshot][z], _("Luminance"));
+		/* Centre verticalement les 3 rangées de curseurs sur la hauteur de la
+		   roue chromatique (GTK3 natif, plutôt que GtkAlignment déprécié). */
+		gtk_widget_set_valign(GTK_WIDGET(ztable), GTK_ALIGN_CENTER);
+		gtk_widget_set_vexpand(GTK_WIDGET(ztable), TRUE);
 		gtk_box_pack_start(GTK_BOX(zhbox), GTK_WIDGET(ztable), TRUE, TRUE, 0);
 
 		gtk_box_pack_start(GTK_BOX(zcol), zhbox, FALSE, FALSE, 0);
@@ -3196,27 +3259,34 @@ photo_finalized(gpointer data, GObject *where_the_object_was)
 	{
 		for(i=0;i<NBASICS;i++)
 		{
-			gtk_widget_set_sensitive(GTK_WIDGET(toolbox->ranges[snapshot][i]), FALSE);
+			if (GTK_IS_WIDGET(toolbox->ranges[snapshot][i]))
+				gtk_widget_set_sensitive(GTK_WIDGET(toolbox->ranges[snapshot][i]), FALSE);
 		}
 		for(i=0;i<NCHANNELMIXER;i++)
 		{
-			gtk_widget_set_sensitive(GTK_WIDGET(toolbox->channelmixer[snapshot][i]), FALSE);
+			if (GTK_IS_WIDGET(toolbox->channelmixer[snapshot][i]))
+				gtk_widget_set_sensitive(GTK_WIDGET(toolbox->channelmixer[snapshot][i]), FALSE);
 		}
 		for(i=0;i<NLENS;i++)
 		{
-			gtk_widget_set_sensitive(GTK_WIDGET(toolbox->lens[snapshot][i]), FALSE);
+			if (GTK_IS_WIDGET(toolbox->lens[snapshot][i]))
+				gtk_widget_set_sensitive(GTK_WIDGET(toolbox->lens[snapshot][i]), FALSE);
 		}
 		for(i=0;i<NDEHAZE;i++)
-			gtk_widget_set_sensitive(GTK_WIDGET(toolbox->dehaze_slider[snapshot][i]), FALSE);
+			if (GTK_IS_WIDGET(toolbox->dehaze_slider[snapshot][i]))
+				gtk_widget_set_sensitive(GTK_WIDGET(toolbox->dehaze_slider[snapshot][i]), FALSE);
 		for(i=0;i<NDRC;i++)
-			gtk_widget_set_sensitive(GTK_WIDGET(toolbox->drc_slider[snapshot][i]), FALSE);
+			if (GTK_IS_WIDGET(toolbox->drc_slider[snapshot][i]))
+				gtk_widget_set_sensitive(GTK_WIDGET(toolbox->drc_slider[snapshot][i]), FALSE);
 		for(i=0;i<NSOFTLIGHT;i++)
 		{
-			gtk_widget_set_sensitive(GTK_WIDGET(toolbox->softlight[snapshot][i]), FALSE);
+			if (GTK_IS_WIDGET(toolbox->softlight[snapshot][i]))
+				gtk_widget_set_sensitive(GTK_WIDGET(toolbox->softlight[snapshot][i]), FALSE);
 		}
 		for(i=0;i<NARTVIGNETTE;i++)
 		{
-			gtk_widget_set_sensitive(GTK_WIDGET(toolbox->artvignette[snapshot][i]), FALSE);
+			if (GTK_IS_WIDGET(toolbox->artvignette[snapshot][i]))
+				gtk_widget_set_sensitive(GTK_WIDGET(toolbox->artvignette[snapshot][i]), FALSE);
 		}
 		for(i=0;i<NBW;i++)
 			if (toolbox->bw[snapshot][i])
@@ -3239,13 +3309,13 @@ photo_finalized(gpointer data, GObject *where_the_object_was)
 			gtk_widget_set_sensitive(toolbox->colorwheels_enable[snapshot], FALSE);
 		for(i=0;i<3;i++)
 		{
-			if (toolbox->colorwheel[snapshot][i])
+			if (GTK_IS_WIDGET(toolbox->colorwheel[snapshot][i]))
 				gtk_widget_set_sensitive(toolbox->colorwheel[snapshot][i], FALSE);
-			if (toolbox->cwlum[snapshot][i])
+			if (GTK_IS_WIDGET(toolbox->cwlum[snapshot][i]))
 				gtk_widget_set_sensitive(GTK_WIDGET(toolbox->cwlum[snapshot][i]), FALSE);
-			if (toolbox->cwhue[snapshot][i])
+			if (GTK_IS_WIDGET(toolbox->cwhue[snapshot][i]))
 				gtk_widget_set_sensitive(GTK_WIDGET(toolbox->cwhue[snapshot][i]), FALSE);
-			if (toolbox->cwsat[snapshot][i])
+			if (GTK_IS_WIDGET(toolbox->cwsat[snapshot][i]))
 				gtk_widget_set_sensitive(GTK_WIDGET(toolbox->cwsat[snapshot][i]), FALSE);
 		}
 		if (toolbox->hsl_enable[snapshot])
@@ -3395,13 +3465,24 @@ toolbox_copy_from_photo(RSToolbox *toolbox, const gint snapshot, const RSSetting
 				gtk_widget_queue_draw(toolbox->colorwheel[snapshot][i]);
 			if (mask && toolbox->cwhue[snapshot][i] && toolbox->cwsat[snapshot][i])
 			{
-				gfloat x = 0.0f, y = 0.0f;
+				gfloat x = 0.0f, y = 0.0f, hp = 0.0f;
 				g_object_get(toolbox->photo->settings[snapshot],
-					cwx_prop[i], &x, cwy_prop[i], &y, NULL);
+					cwx_prop[i], &x, cwy_prop[i], &y,
+					cwh_prop[i], &hp, NULL);
 				gdouble r = hypot(x, y);
 				if (r > 1.0) r = 1.0;
-				gdouble hue = atan2(y, x) * 180.0 / M_PI;
-				if (hue < 0.0) hue += 360.0;
+				gdouble hue;
+				if (r > 0.0)
+				{
+					hue = atan2(y, x) * 180.0 / M_PI;
+					if (hue < 0.0) hue += 360.0;
+				}
+				else
+				{
+					/* r = 0 : l'angle (x,y) ne porte aucune direction,
+					   on restaure la teinte mémorisée. */
+					hue = hp;
+				}
 				gtk_range_set_value(toolbox->cwhue[snapshot][i], hue);
 				gtk_range_set_value(toolbox->cwsat[snapshot][i], r);
 				cw_slider_update_labels(toolbox, snapshot, i);
@@ -3520,9 +3601,11 @@ rs_toolbox_set_photo(RSToolbox *toolbox, RS_PHOTO *photo)
 
 			/* Set the basic types sensitive */
 			for(i=0;i<NBASICS;i++)
-				gtk_widget_set_sensitive(GTK_WIDGET(toolbox->ranges[snapshot][i]), TRUE);
+				if (GTK_IS_WIDGET(toolbox->ranges[snapshot][i]))
+					gtk_widget_set_sensitive(GTK_WIDGET(toolbox->ranges[snapshot][i]), TRUE);
 			for(i=0;i<NCHANNELMIXER;i++)
-				gtk_widget_set_sensitive(GTK_WIDGET(toolbox->channelmixer[snapshot][i]), TRUE);
+				if (GTK_IS_WIDGET(toolbox->channelmixer[snapshot][i]))
+					gtk_widget_set_sensitive(GTK_WIDGET(toolbox->channelmixer[snapshot][i]), TRUE);
 
 			if (photo->metadata->lens_identifier) {
 				RSLensDb *lens_db = rs_lens_db_get_default();
@@ -3533,26 +3616,33 @@ rs_toolbox_set_photo(RSToolbox *toolbox, RS_PHOTO *photo)
 			toolbox_lens_set_label(toolbox, snapshot);
 
 			for(i=0;i<NLENS;i++)
-				gtk_widget_set_sensitive(GTK_WIDGET(toolbox->lens[snapshot][i]), TRUE);
+				if (GTK_IS_WIDGET(toolbox->lens[snapshot][i]))
+					gtk_widget_set_sensitive(GTK_WIDGET(toolbox->lens[snapshot][i]), TRUE);
 			for(i=0;i<NDEHAZE;i++)
-				gtk_widget_set_sensitive(GTK_WIDGET(toolbox->dehaze_slider[snapshot][i]), TRUE);
+				if (GTK_IS_WIDGET(toolbox->dehaze_slider[snapshot][i]))
+					gtk_widget_set_sensitive(GTK_WIDGET(toolbox->dehaze_slider[snapshot][i]), TRUE);
 			for(i=0;i<NDRC;i++)
-				gtk_widget_set_sensitive(GTK_WIDGET(toolbox->drc_slider[snapshot][i]), TRUE);
+				if (GTK_IS_WIDGET(toolbox->drc_slider[snapshot][i]))
+					gtk_widget_set_sensitive(GTK_WIDGET(toolbox->drc_slider[snapshot][i]), TRUE);
 			for(i=0;i<NSOFTLIGHT;i++)
-				gtk_widget_set_sensitive(GTK_WIDGET(toolbox->softlight[snapshot][i]), TRUE);
+				if (GTK_IS_WIDGET(toolbox->softlight[snapshot][i]))
+					gtk_widget_set_sensitive(GTK_WIDGET(toolbox->softlight[snapshot][i]), TRUE);
 			for(i=0;i<NARTVIGNETTE;i++)
-				gtk_widget_set_sensitive(GTK_WIDGET(toolbox->artvignette[snapshot][i]), TRUE);
+				if (GTK_IS_WIDGET(toolbox->artvignette[snapshot][i]))
+					gtk_widget_set_sensitive(GTK_WIDGET(toolbox->artvignette[snapshot][i]), TRUE);
 			for(i=0;i<NBW;i++)
 				if (toolbox->bw[snapshot][i])
 					gtk_widget_set_sensitive(GTK_WIDGET(toolbox->bw[snapshot][i]), TRUE);
 			if (toolbox->bw_enable[snapshot])
 				gtk_widget_set_sensitive(toolbox->bw_enable[snapshot], TRUE);
 			for(i=0;i<NTONEEQ;i++)
-				gtk_widget_set_sensitive(GTK_WIDGET(toolbox->toneeq[snapshot][i]), TRUE);
+				if (GTK_IS_WIDGET(toolbox->toneeq[snapshot][i]))
+					gtk_widget_set_sensitive(GTK_WIDGET(toolbox->toneeq[snapshot][i]), TRUE);
 			if (toolbox->toneeq_enable[snapshot])
 				gtk_widget_set_sensitive(toolbox->toneeq_enable[snapshot], TRUE);
 			for(i=0;i<NARGENTICO;i++)
-				gtk_widget_set_sensitive(GTK_WIDGET(toolbox->argentico[snapshot][i]), TRUE);
+				if (GTK_IS_WIDGET(toolbox->argentico[snapshot][i]))
+					gtk_widget_set_sensitive(GTK_WIDGET(toolbox->argentico[snapshot][i]), TRUE);
 			if (toolbox->argentico_enable[snapshot])
 				gtk_widget_set_sensitive(toolbox->argentico_enable[snapshot], TRUE);
 			if (toolbox->argentico_pick[snapshot])
@@ -3561,13 +3651,13 @@ rs_toolbox_set_photo(RSToolbox *toolbox, RS_PHOTO *photo)
 				gtk_widget_set_sensitive(toolbox->colorwheels_enable[snapshot], TRUE);
 			for(i=0;i<3;i++)
 			{
-				if (toolbox->colorwheel[snapshot][i])
+				if (GTK_IS_WIDGET(toolbox->colorwheel[snapshot][i]))
 					gtk_widget_set_sensitive(toolbox->colorwheel[snapshot][i], TRUE);
-				if (toolbox->cwlum[snapshot][i])
+				if (GTK_IS_WIDGET(toolbox->cwlum[snapshot][i]))
 					gtk_widget_set_sensitive(GTK_WIDGET(toolbox->cwlum[snapshot][i]), TRUE);
-				if (toolbox->cwhue[snapshot][i])
+				if (GTK_IS_WIDGET(toolbox->cwhue[snapshot][i]))
 					gtk_widget_set_sensitive(GTK_WIDGET(toolbox->cwhue[snapshot][i]), TRUE);
-				if (toolbox->cwsat[snapshot][i])
+				if (GTK_IS_WIDGET(toolbox->cwsat[snapshot][i]))
 					gtk_widget_set_sensitive(GTK_WIDGET(toolbox->cwsat[snapshot][i]), TRUE);
 			}
 			if (toolbox->hsl_enable[snapshot])

@@ -102,12 +102,15 @@ typedef enum {
 	MASK_CW_SHADOWS_X   = MASK_SOFTLIGHT_STRENGTH,
 	MASK_CW_SHADOWS_Y   = MASK_SOFTLIGHT_STRENGTH,
 	MASK_CW_SHADOWS_LUM = MASK_SOFTLIGHT_STRENGTH,
+	MASK_CW_SHADOWS_HUE = MASK_SOFTLIGHT_STRENGTH,
 	MASK_CW_MID_X       = MASK_SOFTLIGHT_STRENGTH,
 	MASK_CW_MID_Y       = MASK_SOFTLIGHT_STRENGTH,
 	MASK_CW_MID_LUM     = MASK_SOFTLIGHT_STRENGTH,
+	MASK_CW_MID_HUE     = MASK_SOFTLIGHT_STRENGTH,
 	MASK_CW_HIGH_X      = MASK_SOFTLIGHT_STRENGTH,
 	MASK_CW_HIGH_Y      = MASK_SOFTLIGHT_STRENGTH,
 	MASK_CW_HIGH_LUM    = MASK_SOFTLIGHT_STRENGTH,
+	MASK_CW_HIGH_HUE    = MASK_SOFTLIGHT_STRENGTH,
 	/* Égaliseur de couleurs (color zones) — partage aussi le bit softlight */
 	MASK_HSL_ENABLED    = MASK_SOFTLIGHT_STRENGTH,
 	MASK_HSL_HUE        = MASK_SOFTLIGHT_STRENGTH,
@@ -241,12 +244,15 @@ typedef struct _RSsettings {
 	gfloat cw_shadows_x;
 	gfloat cw_shadows_y;
 	gfloat cw_shadows_lum;
+	gfloat cw_shadows_hue;
 	gfloat cw_mid_x;
 	gfloat cw_mid_y;
 	gfloat cw_mid_lum;
+	gfloat cw_mid_hue;
 	gfloat cw_high_x;
 	gfloat cw_high_y;
 	gfloat cw_high_lum;
+	gfloat cw_high_hue;
 	/* Égaliseur de couleurs (color zones façon ART HSL equalizer) — 3 courbes
 	   plates indexées par la teinte du pixel (8 bandes, 0 = neutre), stockées en
 	   chaîne "v0 v1 … v7" (valeurs [-1,1]) façon wb_ascii. */

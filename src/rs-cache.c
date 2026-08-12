@@ -299,12 +299,15 @@ rs_cache_save_settings(RSSettings *rss, const RSSettingsMask mask, xmlTextWriter
 	RS_XML_WRITE_FLOAT(writer, "cw_shadows_x",   rss->cw_shadows_x);
 	RS_XML_WRITE_FLOAT(writer, "cw_shadows_y",   rss->cw_shadows_y);
 	RS_XML_WRITE_FLOAT(writer, "cw_shadows_lum", rss->cw_shadows_lum);
+	RS_XML_WRITE_FLOAT(writer, "cw_shadows_hue", rss->cw_shadows_hue);
 	RS_XML_WRITE_FLOAT(writer, "cw_mid_x",       rss->cw_mid_x);
 	RS_XML_WRITE_FLOAT(writer, "cw_mid_y",       rss->cw_mid_y);
 	RS_XML_WRITE_FLOAT(writer, "cw_mid_lum",     rss->cw_mid_lum);
+	RS_XML_WRITE_FLOAT(writer, "cw_mid_hue",     rss->cw_mid_hue);
 	RS_XML_WRITE_FLOAT(writer, "cw_high_x",      rss->cw_high_x);
 	RS_XML_WRITE_FLOAT(writer, "cw_high_y",      rss->cw_high_y);
 	RS_XML_WRITE_FLOAT(writer, "cw_high_lum",    rss->cw_high_lum);
+	RS_XML_WRITE_FLOAT(writer, "cw_high_hue",    rss->cw_high_hue);
 	RS_XML_WRITE_INT  (writer, "hsl_enabled",    rss->hsl_enabled);
 	if (rss->hsl_hue_curve)
 		xmlTextWriterWriteFormatElement(writer, BAD_CAST "hsl_hue_curve", "%s", rss->hsl_hue_curve);
@@ -534,18 +537,24 @@ rs_cache_load_setting(RSSettings *rss, xmlDocPtr doc, xmlNodePtr cur, gint versi
 			{ mask |= MASK_CW_SHADOWS_Y;   target = &rss->cw_shadows_y; }
 		else if ((!xmlStrcmp(cur->name, BAD_CAST "cw_shadows_lum")))
 			{ mask |= MASK_CW_SHADOWS_LUM; target = &rss->cw_shadows_lum; }
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "cw_shadows_hue")))
+			{ mask |= MASK_CW_SHADOWS_HUE; target = &rss->cw_shadows_hue; }
 		else if ((!xmlStrcmp(cur->name, BAD_CAST "cw_mid_x")))
 			{ mask |= MASK_CW_MID_X;   target = &rss->cw_mid_x; }
 		else if ((!xmlStrcmp(cur->name, BAD_CAST "cw_mid_y")))
 			{ mask |= MASK_CW_MID_Y;   target = &rss->cw_mid_y; }
 		else if ((!xmlStrcmp(cur->name, BAD_CAST "cw_mid_lum")))
 			{ mask |= MASK_CW_MID_LUM; target = &rss->cw_mid_lum; }
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "cw_mid_hue")))
+			{ mask |= MASK_CW_MID_HUE; target = &rss->cw_mid_hue; }
 		else if ((!xmlStrcmp(cur->name, BAD_CAST "cw_high_x")))
 			{ mask |= MASK_CW_HIGH_X;   target = &rss->cw_high_x; }
 		else if ((!xmlStrcmp(cur->name, BAD_CAST "cw_high_y")))
 			{ mask |= MASK_CW_HIGH_Y;   target = &rss->cw_high_y; }
 		else if ((!xmlStrcmp(cur->name, BAD_CAST "cw_high_lum")))
 			{ mask |= MASK_CW_HIGH_LUM; target = &rss->cw_high_lum; }
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "cw_high_hue")))
+			{ mask |= MASK_CW_HIGH_HUE; target = &rss->cw_high_hue; }
 		else if ((!xmlStrcmp(cur->name, BAD_CAST "colorwheels_enabled")))
 		{
 			mask |= MASK_COLORWHEELS_ENABLED;
