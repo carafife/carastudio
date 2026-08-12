@@ -92,7 +92,7 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop || :
 %{_datadir}/pixmaps/%{name}/
 
 %changelog
-* Tue Aug 12 2026 Carafife <carafife@users.noreply.github.com> - 2026.08.2-1
+* Wed Aug 12 2026 Carafife <carafife@users.noreply.github.com> - 2026.08.2-1
 - Balance des couleurs : les roues sont plus grandes et redessinées, avec un
   anneau chromatique extérieur et un centre qui s'éclaircit vers le blanc.
 - Balance des couleurs : la direction de teinte choisie est désormais mémorisée
@@ -124,7 +124,7 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop || :
   et « Les menus, de A à Z », plus la documentation des nouveautés (FR + EN).
 - Thèmes et curseurs des roues proposés par Christian Bouhon.
 
-* Sun Aug 03 2026 Carafife <carafife@users.noreply.github.com> - 2026.08-1
+* Mon Aug 03 2026 Carafife <carafife@users.noreply.github.com> - 2026.08-1
 - Recadrage / redressement : outils déportés dans un module de l'onglet
   « Outils » (façon ART), l'ancienne palette flottante qui gênait le tracé en
   paysage est supprimée. Bouton « Redresser » dans la barre (rappuyer annule),
