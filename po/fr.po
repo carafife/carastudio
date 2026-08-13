@@ -2221,7 +2221,7 @@ msgstr "* <small>(%d)</small>"
 
 #: src/rs-store.c:288
 msgid "All photos (excluding deleted)"
-msgstr "Toutes les photos (y compris celles supprimées)"
+msgstr "Toutes les photos (sauf celles marquées comme supprimées)"
 
 #. 1
 #: src/rs-store.c:291 src/rs-store.c:1014
