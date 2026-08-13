@@ -1,6 +1,6 @@
 
 Name:           carastudio
-Version:        2026.08.2
+Version:        2026.08.3
 Release:        1%{?dist}
 Summary:        Convivial raw photo developer (a beefed-up fork of RawStudio)
 
@@ -92,6 +92,13 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop || :
 %{_datadir}/pixmaps/%{name}/
 
 %changelog
+* Thu Aug 13 2026 Carafife <carafife@users.noreply.github.com> - 2026.08.3-1
+- Boîtiers récents : les RAW des appareils sortis après 2016 s'ouvraient
+  délavés et fortement magenta (Sony ILCE-6600, Canon CR2 avec une bande noire
+  en bas de l'image). Ces fichiers sont désormais confiés à LibRaw, qui connaît
+  ces boîtiers, au lieu d'être décodés avec des niveaux devinés.
+- Aucun changement pour les boîtiers déjà correctement reconnus.
+
 * Wed Aug 12 2026 Carafife <carafife@users.noreply.github.com> - 2026.08.2-1
 - Balance des couleurs : les roues sont plus grandes et redessinées, avec un
   anneau chromatique extérieur et un centre qui s'éclaircit vers le blanc.

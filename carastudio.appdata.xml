@@ -29,6 +29,17 @@
   </description>
   <url type="homepage">https://github.com/carafife/CaraStudio</url>
   <releases>
+    <release version="2026.08.3" date="2026-08-13">
+      <description>
+        <p>
+          Recent cameras: RAW files from bodies released after 2016 opened
+          washed out and heavily magenta, sometimes with a black band along the
+          bottom of the image. Such files are now handed to LibRaw, which knows
+          these cameras, instead of being decoded with guessed black and white
+          levels. Cameras that were already decoded correctly are unaffected.
+        </p>
+      </description>
+    </release>
     <release version="2026.08.2" date="2026-08-12">
       <description>
         <p>
