@@ -143,6 +143,24 @@ rm -rf "$A/usr/include" "$A/usr/lib/pkgconfig"          # superflu dev
 # AUCUNE variable d'environnement, donc sans ce chargement explicite un
 # utilisateur sans lensfun installé n'aurait aucun objectif reconnu.
 cp -r /usr/share/lensfun "$A/usr/share/lensfun"
+# ... mais PAS celle d'Ubuntu 20.04 : son paquet lensfun date de 2018 et ignore
+# tout objectif plus récent (issue #28 : Sony E 70-350 mm f/4.5-6.3 G OSS, 2019,
+# introuvable → aucune correction proposée). Même piège que la base boîtiers de
+# rawspeed : une base figée à l'intérieur de l'AppImage.
+# On écrase donc les XML par ceux de lensfun $LENSFUN_DB_REF.
+# Compatibilité VÉRIFIÉE : le format reste "lensdatabase version=1" et la
+# liblensfun 0.3.2 d'Ubuntu 20.04 charge cette base sans erreur et y retrouve
+# l'objectif (testé en liant un programme d'essai contre la .so embarquée).
+# Aucune balise inconnue de l'ancien analyseur. On garde donc la liblensfun du
+# système et on ne remplace QUE les données — le moins risqué.
+# 21 → 58 objectifs Sony hybrides.
+LENSFUN_DB_REF="${LENSFUN_DB_REF:-v0.3.4}"
+echo "== Base lensfun ($LENSFUN_DB_REF) depuis les sources =="
+git clone --depth 1 --branch "$LENSFUN_DB_REF" https://github.com/lensfun/lensfun.git /root/lensfun-src
+LFDB="$A/usr/share/lensfun/version_1"
+mkdir -p "$LFDB"
+cp -f /root/lensfun-src/data/db/*.xml "$LFDB/"
+echo "Objectifs embarqués : $(cat "$LFDB"/*.xml | grep -c '<lens>') (dont Sony hybrides : $(grep -c '<lens>' "$LFDB/mil-sony.xml"))"
 
 echo "== Icône + .desktop =="
 convert /root/carastudio/pixmaps/carastudio.png -resize 512x512 /root/carastudio.png
