@@ -1,6 +1,6 @@
 
 Name:           carastudio
-Version:        2026.08.3
+Version:        2026.08.4
 Release:        1%{?dist}
 Summary:        Convivial raw photo developer (a beefed-up fork of RawStudio)
 
@@ -92,6 +92,17 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop || :
 %{_datadir}/pixmaps/%{name}/
 
 %changelog
+* Thu Aug 13 2026 Carafife <carafife@users.noreply.github.com> - 2026.08.4-1
+- Bande d'images : les priorités passent à l'horizontale au-dessus des
+  vignettes, ce qui supprime la grande zone grise vide, surtout quand les noms
+  de fichiers sont affichés.
+- Les libellés de priorité (* 1 2 3 U D) affichent enfin une infobulle au
+  survol expliquant ce qu'ils désignent.
+- Un fichier supprimé depuis un autre logiciel disparaît maintenant tout seul
+  de la bande d'images.
+- AppImage : base d'objectifs lensfun à jour (les objectifs récents, comme le
+  Sony E 70-350 mm, sont désormais reconnus).
+
 * Thu Aug 13 2026 Carafife <carafife@users.noreply.github.com> - 2026.08.3-1
 - Boîtiers récents : les RAW des appareils sortis après 2016 s'ouvraient
   délavés et fortement magenta (Sony ILCE-6600, Canon CR2 avec une bande noire

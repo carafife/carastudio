@@ -29,6 +29,19 @@
   </description>
   <url type="homepage">https://github.com/carafife/CaraStudio</url>
   <releases>
+    <release version="2026.08.4" date="2026-08-13">
+      <description>
+        <p>
+          Film strip: the priority selector moves to a horizontal row above the
+          thumbnails, removing the large empty grey area that appeared below
+          them, especially with file names shown. The priority labels
+          (* 1 2 3 U D) now show a tooltip explaining what each one means. A
+          file deleted from another application no longer lingers in the film
+          strip. The AppImage now ships an up-to-date lens database, so recent
+          lenses such as the Sony E 70-350mm are recognised.
+        </p>
+      </description>
+    </release>
     <release version="2026.08.3" date="2026-08-13">
       <description>
         <p>
