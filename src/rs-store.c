@@ -98,6 +98,7 @@ struct _RSStore
 	gint open_selected;  /* Contains status message ID, if enabled, 0 otherwise */
 	gchar *next_file;
 	gulong delay_load;
+	GFileMonitor *dir_monitor;	/* Surveille le dossier ouvert (issue #25) */
 };
 
 /* Define the boiler plate stuff using the predefined macro */
@@ -216,7 +217,7 @@ rs_store_init(RSStore *store)
 	GtkWidget *label_tt[NUM_VIEWS];
 	GtkCellRenderer *cell_renderer;
 	gboolean show_filenames;
-	GtkWidget *label_priorities;
+
 
 	store->counter_blocked = FALSE;
 	store->open_selected = 0;
@@ -320,7 +321,28 @@ rs_store_init(RSStore *store)
 		gtk_widget_set_events(GTK_WIDGET(store->iconview[n]), GDK_BUTTON_PRESS_MASK);
 
 		gtk_label_set_markup(GTK_LABEL(store->label[n]), label_text[n]);
-		gtk_misc_set_alignment(GTK_MISC(store->label[n]), 0.0, 0.5);
+		gtk_misc_set_alignment(GTK_MISC(store->label[n]), 0.5, 0.5);
+
+		/* Les infobulles posées ci-dessus ne s'affichaient JAMAIS : un GtkLabel
+		 * n'a pas de fenêtre X propre et ne reçoit donc aucun événement de
+		 * survol. Les libellés « * 1 2 3 U D » restaient donc muets, sans aucun
+		 * moyen de savoir ce qu'ils désignent. On emballe chaque libellé dans un
+		 * GtkEventBox sans fenêtre visible (donc invisible pour l'œil, mais qui
+		 * reçoit les événements) et c'est LUI qui porte l'infobulle. */
+		{
+			GtkWidget *tab_box = gtk_event_box_new();
+			gchar *tip = gtk_widget_get_tooltip_text(store->label[n]);
+
+			gtk_event_box_set_visible_window(GTK_EVENT_BOX(tab_box), FALSE);
+			gtk_container_add(GTK_CONTAINER(tab_box), store->label[n]);
+			gtk_widget_set_tooltip_text(tab_box, tip);
+			g_free(tip);
+			/* Indispensable : gtk_notebook_append_page() n'affiche que le widget
+			 * d'onglet qu'on lui passe, pas sa descendance. Sans ce show_all le
+			 * libellé reste invisible et les onglets apparaissent vides. */
+			gtk_widget_show_all(tab_box);
+			label_tt[n] = tab_box;
+		}
 
 		/* Add everything to the notebook */
 		gtk_notebook_append_page(store->notebook, make_iconview(store->iconview[n], store, priorities[n]), label_tt[n]);
@@ -334,7 +356,13 @@ rs_store_init(RSStore *store)
 	store->current_iconview = store->iconview[0];
 	store->current_priority = priorities[0];
 
-	gtk_notebook_set_tab_pos(store->notebook, GTK_POS_LEFT);
+	/* Onglets de priorités À L'HORIZONTALE, au-dessus des vignettes. Empilés
+	 * verticalement (GTK_POS_LEFT), ils imposaient ~180 px de hauteur à la bande
+	 * d'images alors que son contenu n'en demande que ~140 → large zone grise
+	 * vide sous les vignettes, encore aggravée par l'affichage des noms de
+	 * fichiers (issue #27). En ligne, la bande retrouve la hauteur de son
+	 * contenu. */
+	gtk_notebook_set_tab_pos(store->notebook, GTK_POS_TOP);
 	gtk_widget_set_name(GTK_WIDGET(store->notebook), "filmstrip-notebook");
 
 	g_signal_connect(store->notebook, "switch-page", G_CALLBACK(switch_page), store);
@@ -343,15 +371,10 @@ rs_store_init(RSStore *store)
 
 	all_stores = g_list_append(all_stores, store);
 
-	/* Due to popular demand, I will now add a very nice GTK+ label to the left
-	   of the notebook. We hope this will give our users an even better
-	   understanding of our interface. I was thinking about adding a button instead
-	   that said "ROCK ON!" to instantly play "AC/DC - Highway to Hell", but I
-	   believe this will be better for the end user */
-	label_priorities = gtk_label_new(_("Priorities"));
-	gtk_label_set_angle(GTK_LABEL(label_priorities), 90);
-	gtk_box_pack_start(GTK_BOX (hbox), label_priorities, FALSE, FALSE, 0);
-
+	/* Le libellé « Priorités » (à la verticale, à gauche du notebook) est retiré :
+	   avec les onglets à l'horizontale il se retrouvait mal placé, et il coûtait
+	   de la largeur pour un mot que les infobulles des onglets expliquent
+	   désormais bien mieux. */
 	gtk_box_pack_start(GTK_BOX (hbox), GTK_WIDGET(store->notebook), TRUE, TRUE, 0);
 
 	store->last_path = NULL;
@@ -1408,6 +1431,41 @@ rs_store_remove(RSStore *store, const gchar *filename, GtkTreeIter *iter)
 
 }
 
+/* Un fichier a disparu du dossier ouvert, effacé depuis un autre logiciel
+ * (issue #25 : suppression dans Dolphin sans effet dans CaraStudio). On retire
+ * la vignette correspondante.
+ *
+ * ATTENTION : ce rappel est distribué par la boucle principale, laquelle tourne
+ * sous gdk_threads_enter() (cf. gtk_main() dans gtk-interface.c). Le verrou GDK
+ * est donc DÉJÀ tenu ici. On ne peut pas appeler rs_store_remove(), qui le
+ * reprend : gdk_threads_enter() n'est pas récursif → interblocage. On retire
+ * donc la ligne directement.
+ *
+ * Seule la SUPPRESSION est traitée : retirer une ligne est sans risque. L'ajout
+ * d'un fichier demanderait de relancer toute la chaîne de métadonnées et de
+ * vignettes en arrière-plan — c'est `Ctrl+R` qui s'en charge. */
+static void
+dir_monitor_changed(GFileMonitor *monitor, GFile *file, GFile *other,
+	GFileMonitorEvent event, gpointer data)
+{
+	RSStore *store = RS_STORE(data);
+	GtkTreeIter iter;
+	gchar *filename;
+
+	if (event != G_FILE_MONITOR_EVENT_DELETED &&
+	    event != G_FILE_MONITOR_EVENT_MOVED_OUT)
+		return;
+
+	filename = g_file_get_path(file);
+	if (!filename)
+		return;
+
+	if (tree_find_filename(GTK_TREE_MODEL(store->store), filename, &iter, NULL))
+		gtk_list_store_remove(GTK_LIST_STORE(store->store), &iter);
+
+	g_free(filename);
+}
+
 /**
  * Load thumbnails from a directory into the store
  * @param store A RSStore
@@ -1447,6 +1505,23 @@ rs_store_load_directory(RSStore *store, const gchar *path)
 		return -1;
 	running = TRUE;
 	g_mutex_unlock(&lock);
+
+	/* Surveillance du dossier ouvert : sans elle, un fichier effacé depuis un
+	 * autre logiciel gardait sa vignette jusqu'au rechargement (issue #25).
+	 * On repart d'un moniteur neuf à chaque dossier. */
+	if (store->dir_monitor)
+	{
+		g_file_monitor_cancel(store->dir_monitor);
+		g_clear_object(&store->dir_monitor);
+	}
+	{
+		GFile *dir = g_file_new_for_path(path);
+		store->dir_monitor = g_file_monitor_directory(dir, G_FILE_MONITOR_NONE, NULL, NULL);
+		if (store->dir_monitor)
+			g_signal_connect(store->dir_monitor, "changed",
+				G_CALLBACK(dir_monitor_changed), store);
+		g_object_unref(dir);
+	}
 
 	rs_conf_get_boolean_with_default(CONF_LOAD_GDK, &load_8bit, TRUE);
 	rs_conf_get_boolean(CONF_LOAD_RECURSIVE, &load_recursive);

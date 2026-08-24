@@ -1,6 +1,6 @@
 
 Name:           carastudio
-Version:        2026.08.1
+Version:        2026.08.4
 Release:        1%{?dist}
 Summary:        Convivial raw photo developer (a beefed-up fork of RawStudio)
 
@@ -92,6 +92,35 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop || :
 %{_datadir}/pixmaps/%{name}/
 
 %changelog
+* Thu Aug 13 2026 Carafife <carafife@users.noreply.github.com> - 2026.08.4-1
+- Bande d'images : les priorités passent à l'horizontale au-dessus des
+  vignettes, ce qui supprime la grande zone grise vide, surtout quand les noms
+  de fichiers sont affichés.
+- Les libellés de priorité (* 1 2 3 U D) affichent enfin une infobulle au
+  survol expliquant ce qu'ils désignent.
+- Un fichier supprimé depuis un autre logiciel disparaît maintenant tout seul
+  de la bande d'images.
+- AppImage : base d'objectifs lensfun à jour (les objectifs récents, comme le
+  Sony E 70-350 mm, sont désormais reconnus).
+
+* Thu Aug 13 2026 Carafife <carafife@users.noreply.github.com> - 2026.08.3-1
+- Boîtiers récents : les RAW des appareils sortis après 2016 s'ouvraient
+  délavés et fortement magenta (Sony ILCE-6600, Canon CR2 avec une bande noire
+  en bas de l'image). Ces fichiers sont désormais confiés à LibRaw, qui connaît
+  ces boîtiers, au lieu d'être décodés avec des niveaux devinés.
+- Aucun changement pour les boîtiers déjà correctement reconnus.
+
+* Wed Aug 12 2026 Carafife <carafife@users.noreply.github.com> - 2026.08.2-1
+- Balance des couleurs : les roues sont plus grandes et redessinées, avec un
+  anneau chromatique extérieur et un centre qui s'éclaircit vers le blanc.
+- Balance des couleurs : la direction de teinte choisie est désormais mémorisée
+  même lorsque l'intensité est ramenée à zéro, et un repère reste visible sur
+  l'anneau. Elle est conservée d'une session à l'autre.
+- Panneau d'outils : la séparation est posée à l'allocation réelle de la
+  fenêtre, plus de largeur incohérente à l'ouverture.
+- Correction de messages Gtk-CRITICAL émis à la fermeture d'une photo lorsque
+  certains curseurs n'étaient pas encore construits.
+
 * Sun Aug 09 2026 Carafife <carafife@users.noreply.github.com> - 2026.08.1-1
 - Thèmes d'interface : sélecteur dans les Préférences (CaraStudio, Studio
   Anthracite, Studio Clair, Studio Ambre), appliqué à chaud sans redémarrage.
@@ -113,7 +142,7 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop || :
   et « Les menus, de A à Z », plus la documentation des nouveautés (FR + EN).
 - Thèmes et curseurs des roues proposés par Christian Bouhon.
 
-* Sun Aug 03 2026 Carafife <carafife@users.noreply.github.com> - 2026.08-1
+* Mon Aug 03 2026 Carafife <carafife@users.noreply.github.com> - 2026.08-1
 - Recadrage / redressement : outils déportés dans un module de l'onglet
   « Outils » (façon ART), l'ancienne palette flottante qui gênait le tracé en
   paysage est supprimée. Bouton « Redresser » dans la barre (rappuyer annule),

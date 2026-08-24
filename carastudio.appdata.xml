@@ -29,6 +29,43 @@
   </description>
   <url type="homepage">https://github.com/carafife/CaraStudio</url>
   <releases>
+    <release version="2026.08.4" date="2026-08-13">
+      <description>
+        <p>
+          Film strip: the priority selector moves to a horizontal row above the
+          thumbnails, removing the large empty grey area that appeared below
+          them, especially with file names shown. The priority labels
+          (* 1 2 3 U D) now show a tooltip explaining what each one means. A
+          file deleted from another application no longer lingers in the film
+          strip. The AppImage now ships an up-to-date lens database, so recent
+          lenses such as the Sony E 70-350mm are recognised.
+        </p>
+      </description>
+    </release>
+    <release version="2026.08.3" date="2026-08-13">
+      <description>
+        <p>
+          Recent cameras: RAW files from bodies released after 2016 opened
+          washed out and heavily magenta, sometimes with a black band along the
+          bottom of the image. Such files are now handed to LibRaw, which knows
+          these cameras, instead of being decoded with guessed black and white
+          levels. Cameras that were already decoded correctly are unaffected.
+        </p>
+      </description>
+    </release>
+    <release version="2026.08.2" date="2026-08-12">
+      <description>
+        <p>
+          Color balance: the three wheels are larger and redrawn, with an outer
+          chromatic ring and a centre that lightens towards white. The chosen hue
+          direction is now remembered even when the intensity is brought back to
+          zero, stays marked on the ring, and is preserved from one session to
+          the next. The tool panel divider is set from the real window
+          allocation, and a few Gtk-CRITICAL messages emitted when closing a
+          photo are gone.
+        </p>
+      </description>
+    </release>
     <release version="2026.08.1" date="2026-08-09">
       <description>
         <p>

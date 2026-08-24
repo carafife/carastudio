@@ -1,6 +1,6 @@
 pkgbase = carastudio
 	pkgdesc = Convivial raw photo developer — a beefed-up fork of RawStudio
-	pkgver = 2026.08.1
+	pkgver = 2026.08.4
 	pkgrel = 1
 	url = https://github.com/carafife/carastudio
 	arch = x86_64
@@ -19,7 +19,7 @@ pkgbase = carastudio
 	depends = libxml2
 	depends = libx11
 	optdepends = enblend-enfuse: exposure blending (Enfuse)
-	source = https://github.com/carafife/carastudio/releases/download/carastudio-2026.08.1/carastudio-2026.08.1.tar.gz
+	source = https://github.com/carafife/carastudio/releases/download/carastudio-2026.08.4/carastudio-2026.08.4.tar.gz
 	sha256sums = SKIP
 
 pkgname = carastudio

@@ -98,6 +98,26 @@ load_rawspeed(const gchar *filename)
 			RawParser t(m);
 			d = t.getDecoder();
 			gint col, row;
+
+			/* Boîtier absent de la base rawspeed (cameras.xml, figée) : par défaut
+			 * setMetaData() se contente d'un avertissement et RETOURNE sans rien
+			 * poser — niveau de noir, point de blanc, marges et CFA restent aux
+			 * sentinelles (black=-1, white=65536). scaleBlackWhite() « devine »
+			 * alors une plage : sur un ARW de Sony ILCE-6600 la moyenne passait de
+			 * 3,7 % à 35 % de l'échelle, le rouge (×3 par la WB boîtier) saturait à
+			 * 255 → image délavée et magenta (issues #29, #24 ; la bande noire en
+			 * bas du CR2 = marges non recadrées, même cause).
+			 *
+			 * On exige donc que le boîtier soit connu : sinon RawDecoderException,
+			 * aucune image produite, et rs_filetype_load_image passe au chargeur
+			 * suivant — LibRaw (priorité 10), qui gère correctement noir/blanc et
+			 * marges pour les boîtiers récents.
+			 *
+			 * EXCEPTION DNG : le format porte lui-même ses niveaux et sa matrice,
+			 * DngDecoder n'a pas besoin de la base (il met d'ailleurs explicitement
+			 * failOnUnknown à FALSE dans son constructeur) → on n'y touche pas. */
+			if (!g_str_has_suffix(filename, ".dng") && !g_str_has_suffix(filename, ".DNG"))
+				d->failOnUnknown = TRUE;
 			gint cpp;
 
 #ifdef TIME_LOAD
@@ -162,7 +182,15 @@ load_rawspeed(const gchar *filename)
 	}
 		catch (RawDecoderException &e)
 		{
-			g_warning("RawSpeed: RawDecoderException: %s", e.what());
+			/* Boîtier absent de cameras.xml (cf. failOnUnknown ci-dessus) : ce n'est
+			 * PAS une anomalie, c'est le repli nominal vers LibRaw. On n'alarme donc
+			 * pas l'utilisateur — sinon toute photo de boîtier postérieur à ~2016
+			 * afficherait un WARNING. Les vraies erreurs de décodage, elles, restent
+			 * en g_warning. */
+			if (strstr(e.what(), "not allowed to guess"))
+				RS_DEBUG(PLUGINS, "RawSpeed: boîtier inconnu, repli sur LibRaw (%s)", e.what());
+			else
+				g_warning("RawSpeed: RawDecoderException: %s", e.what());
 		}
 	}
 	catch (IOException &e)
