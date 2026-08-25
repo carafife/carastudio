@@ -64,6 +64,13 @@ extern void rs_filetype_register_meta_loader(const gchar *service, const gchar *
 extern gboolean rs_filetype_can_load(const gchar *filename);
 
 /**
+ * Le fichier est-il un RAW de capteur (par opposition à une image déjà
+ * développée : JPEG, TIFF, PNG) ? Se fonde sur les drapeaux des chargeurs
+ * enregistrés, donc reste juste si de nouveaux formats sont ajoutés.
+ */
+extern gboolean rs_filetype_is_raw(const gchar *filename);
+
+/**
  * Load an image according to registered loaders
  * @param filename The file to load
  * @return A new RS_IMAGE16 or NULL if the loading failed

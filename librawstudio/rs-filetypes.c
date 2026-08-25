@@ -204,6 +204,27 @@ rs_filetype_can_load(const gchar *filename)
 }
 
 /**
+ * Check if a file is a sensor RAW
+ * @param filename A filename or extension to look-up
+ */
+gboolean
+rs_filetype_is_raw(const gchar *filename)
+{
+	gint priority = 0;
+
+	g_return_val_if_fail(rs_filetype_is_initialized, FALSE);
+	g_return_val_if_fail(filename != NULL, FALSE);
+
+	/* Le .rse (résultat d'un Enfuse) est enregistré en RS_LOADER_FLAGS_RAW pour
+	   des raisons historiques, mais c'est une image DÉJÀ développée : la traiter
+	   en RAW lui appliquerait une matrice de capteur. */
+	if (g_str_has_suffix(filename, ".rse") || g_str_has_suffix(filename, ".RSE"))
+		return FALSE;
+
+	return (filetype_search(loaders, filename, &priority, RS_LOADER_FLAGS_RAW) != NULL);
+}
+
+/**
  * Load an image according to registered loaders
  * @param filename The file to load
  * @return A new RS_IMAGE16 or NULL if the loading failed
