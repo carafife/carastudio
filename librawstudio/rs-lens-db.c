@@ -389,6 +389,76 @@ rs_lens_db_add_lens(RSLensDb *lens_db, RSLens *lens)
 }
 
 /**
+ * Tente d'associer tout seul un objectif lensfun à un objectif fraîchement
+ * découvert (#28).
+ *
+ * On refait exactement la recherche que propose le menu « Utiliser l'objectif »
+ * de l'éditeur : le boîtier, puis la plage focale. On n'assigne QUE si cette
+ * recherche ne renvoie qu'un seul objectif — un choix unique n'est pas un choix,
+ * et l'utilisateur n'a rien à trancher. Dès qu'il y a plusieurs candidats
+ * (montures différentes, versions I/II d'un même caillou), on ne devine pas :
+ * l'objectif reste « inconnu » et l'assignation manuelle garde la main.
+ *
+ * L'association est enregistrée activée : sans cela l'objectif serait nommé mais
+ * la correction resterait à cocher, ce qui ne répond pas à la demande.
+ * L'utilisateur peut la décocher, et son choix est conservé — cette fonction ne
+ * s'exécute que la toute première fois qu'un objectif entre dans la base locale.
+ */
+static void
+try_lensfun_autoassign(RSLens *lens, RSMetadata *metadata)
+{
+	struct lfDatabase *lensdb;
+	const lfCamera **cameras;
+	const lfLens **lenses;
+	gchar *lens_search;
+
+	if (!lens || !metadata)
+		return;
+
+	/* Sans plage focale exploitable, la recherche n'a aucun pouvoir
+	   discriminant : on s'abstient. */
+	if (metadata->lens_min_focal <= 0.0 || metadata->lens_max_focal <= 0.0)
+		return;
+
+	if (!metadata->make_ascii || !metadata->model_ascii)
+		return;
+
+	lensdb = lf_db_new();
+	if (!lensdb)
+		return;
+	rs_lensfun_db_load(lensdb);
+
+	cameras = lf_db_find_cameras(lensdb, metadata->make_ascii, metadata->model_ascii);
+	if (cameras)
+	{
+		if (metadata->lens_min_focal == metadata->lens_max_focal)
+			lens_search = g_strdup_printf("%.0fmm", metadata->lens_min_focal);
+		else
+			lens_search = g_strdup_printf("%.0f-%.0f", metadata->lens_min_focal, metadata->lens_max_focal);
+
+		lenses = lf_db_find_lenses_hd(lensdb, cameras[0], NULL, lens_search, 0);
+		if (lenses && lenses[0] && !lenses[1])
+		{
+			/* Copies obligatoires : les setters stockent le pointeur tel
+			   quel, et ces chaînes appartiennent à la base lensfun qu'on
+			   détruit deux lignes plus bas. Sans g_strdup, l'objectif
+			   s'affichait en caractères illisibles et la base locale ne
+			   pouvait plus être écrite (UTF-8 invalide). */
+			rs_lens_set_lensfun_make(lens, g_strdup(lenses[0]->Maker));
+			rs_lens_set_lensfun_model(lens, g_strdup(lenses[0]->Model));
+			rs_lens_set_lensfun_enabled(lens, TRUE);
+		}
+		if (lenses)
+			lf_free(lenses);
+
+		g_free(lens_search);
+		lf_free(cameras);
+	}
+
+	lf_db_destroy(lensdb);
+}
+
+/**
  * Lookup a lens in the database based on information in a RSMetadata
  * @param lens_db A RSLensDb
  * @param metadata A RSMetadata
@@ -412,7 +482,10 @@ RSLens *rs_lens_db_lookup_from_metadata(RSLensDb *lens_db, RSMetadata *metadata)
 		lens = rs_lens_new_from_medadata(metadata);
 
 		if (lens)
+		{
+			try_lensfun_autoassign(lens, metadata);
 			rs_lens_db_add_lens(lens_db, lens);
+		}
 	}
 
 	return lens;

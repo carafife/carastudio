@@ -332,7 +332,8 @@ libraw_load_meta(const gchar *service, RAWFILE *rawfile, guint offset, RSMetadat
 			 * tournée, signalé issue #11). LibRaw expose tout l'EXIF ; on le
 			 * recopie ici. CIBLÉ .cr3 : sur les formats gérés par meta-tiff
 			 * (cr2/nef…), on ne touche à rien — meta-tiff s'exécute juste après
-			 * (priorité 10 > 5) et reste la source de référence testée. */
+			 * (priorité 10 > 5) et reste la source de référence testée. Seul
+			 * l'objectif (plus bas) vaut pour tous les formats, cf. #28. */
 			{
 				const gchar *ext = service ? strrchr(service, '.') : NULL;
 				if (ext && g_ascii_strcasecmp(ext, ".cr3") == 0)
@@ -389,16 +390,40 @@ libraw_load_meta(const gchar *service, RAWFILE *rawfile, guint offset, RSMetadat
 						}
 					}
 
-					/* Objectif */
-					if (!meta->lens_identifier && raw->lens.Lens[0])
-						meta->lens_identifier = g_strstrip(g_strdup(raw->lens.Lens));
-					if (meta->lens_min_focal <= 0.0 && raw->lens.MinFocal > 0.0f)
-						meta->lens_min_focal = raw->lens.MinFocal;
-					if (meta->lens_max_focal <= 0.0 && raw->lens.MaxFocal > 0.0f)
-						meta->lens_max_focal = raw->lens.MaxFocal;
-					if (meta->lens_max_aperture <= 0.0 && raw->lens.EXIF_MaxAp > 0.0f)
-						meta->lens_max_aperture = raw->lens.EXIF_MaxAp;
 				}
+
+				/* Objectif — TOUS les formats RAW, pas seulement .cr3 (#28).
+				 *
+				 * Les parseurs maison ne lisent la spec objectif que pour une
+				 * poignée de marques ; pour les autres (Sony entre autres),
+				 * meta-tiff se rabat sur la focale et l'ouverture DE LA PRISE DE
+				 * VUE — un repli prévu pour les compacts à objectif fixe. Sur un
+				 * boîtier à objectifs interchangeables, le résultat est doublement
+				 * faux : un « 70-70 mm f/8-8 » qui ne correspond à aucun objectif
+				 * de la base lensfun (d'où « Objectif inconnu »), et surtout une
+				 * identité d'objectif DIFFÉRENTE À CHAQUE FOCALE — d'où une
+				 * assignation manuelle qui ne se répercutait que sur les photos
+				 * prises à la même focale et à la même ouverture.
+				 *
+				 * LibRaw, elle, décode l'objectif de toutes les marques. On pose
+				 * donc ses valeurs AVANT que meta-tiff (priorité 10 > 5) n'arrive
+				 * avec son repli : celui-ci ne réécrit que ce qui est resté
+				 * négatif, il se taira désormais. Les gardes conservent la
+				 * primauté du parseur maison là où il sait faire.
+				 *
+				 * Le nom va dans fixed_lens_identifier et non lens_identifier :
+				 * seul le premier est écrit dans le cache de métadonnées. Posé
+				 * dans l'autre champ, le nom se perdait dès la deuxième lecture
+				 * (la bande d'images crée le cache, l'éditeur le relit) et
+				 * l'identifiant repartait sur la suite de chiffres. */
+				if (!meta->fixed_lens_identifier && !meta->lens_identifier && raw->lens.Lens[0])
+					meta->fixed_lens_identifier = g_strstrip(g_strdup(raw->lens.Lens));
+				if (meta->lens_min_focal <= 0.0 && raw->lens.MinFocal > 0.0f)
+					meta->lens_min_focal = raw->lens.MinFocal;
+				if (meta->lens_max_focal <= 0.0 && raw->lens.MaxFocal > 0.0f)
+					meta->lens_max_focal = raw->lens.MaxFocal;
+				if (meta->lens_max_aperture <= 0.0 && raw->lens.EXIF_MaxAp > 0.0f)
+					meta->lens_max_aperture = raw->lens.EXIF_MaxAp;
 			}
 
 			/* Vignette : miniature embarquée décodée par LibRaw. Le parseur maison
