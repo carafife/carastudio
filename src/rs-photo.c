@@ -20,7 +20,6 @@
 #include <rawstudio.h>
 #include <string.h> /* memset() */
 #include <math.h> /* log2() — auto-exposition */
-#include <stdio.h> /* [WBPIP] trace comparative ART vs CaraStudio (#21) — temporaire */
 #include "rs-photo.h"
 #include "rs-cache.h"
 #include "rs-camera-db.h"
@@ -692,38 +691,6 @@ rs_photo_set_wb_from_color(RS_PHOTO *photo, const gint snapshot, const gdouble r
 
 	warmth = (b-r)/(r+b); /* r*(1+warmth) = b*(1-warmth) */
 	tint = -g/(r+r*warmth)+2.0; /* magic */
-
-	/* [WBPIP] instrumentation comparative ART vs CaraStudio (#21) — TEMPORAIRE.
-	 * Ne modifie PAS le calcul : on logge le triplet prélevé, le warmth/tint
-	 * obtenu, et la température/teinte colorimétrique équivalente du spot
-	 * (sRGB D65 -> XYZ -> xy -> Robertson) afin de comparer aux nombres
-	 * qu'ART affiche en mode verbose (AVG + temp/green) sur le MÊME point. */
-	{
-		FILE *wbpip = fopen("/tmp/carastudio_wb.log", "a");
-		if (wbpip)
-		{
-			static const gdouble srgb_to_xyz[3][3] = {
-				{ 0.4124564, 0.3575761, 0.1804375 },
-				{ 0.2126729, 0.7151522, 0.0721750 },
-				{ 0.0193339, 0.1191920, 0.9503041 }
-			};
-			RS_XYZ_VECTOR xyz;
-			RS_xy_COORD xy;
-			gfloat ctemp = 0.0f, ctint = 0.0f;
-
-			xyz.X = srgb_to_xyz[0][0]*r + srgb_to_xyz[0][1]*g + srgb_to_xyz[0][2]*b;
-			xyz.Y = srgb_to_xyz[1][0]*r + srgb_to_xyz[1][1]*g + srgb_to_xyz[1][2]*b;
-			xyz.Z = srgb_to_xyz[2][0]*r + srgb_to_xyz[2][1]*g + srgb_to_xyz[2][2]*b;
-			xy = XYZ_to_xy(&xyz);
-			rs_color_whitepoint_to_temp(&xy, &ctemp, &ctint);
-
-			fprintf(wbpip,
-				"[WBPIP] %-4s spot r=%.4f g=%.4f b=%.4f | warmth=%.4f tint=%.4f | xy=(%.4f,%.4f) temp=%.0fK tint_col=%.4f\n",
-				photo->embedded_profile ? "8bit" : "RAW",
-				r, g, b, warmth, tint, xy.x, xy.y, ctemp, ctint);
-			fclose(wbpip);
-		}
-	}
 
 	rs_photo_set_wb_from_wt(photo, snapshot, warmth, tint);
 }
