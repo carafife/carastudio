@@ -29,6 +29,25 @@
   </description>
   <url type="homepage">https://github.com/carafife/CaraStudio</url>
   <releases>
+    <release version="2026.08.5" date="2026-08-25">
+      <description>
+        <p>
+          Film strip: no more grey area below the thumbnails while they are
+          still loading. Lens correction: the focal length and aperture of the
+          shot were mistaken for the lens specification, which left the lens
+          unidentified and gave it a different identity at every focal length;
+          lenses are now identified correctly and assigned automatically when
+          the lens database offers a single match. Tool panel: the vertical
+          scrollbar no longer covers the value column. White balance: the
+          temperature and tint sliders had no effect on any camera without a DCP
+          profile, notably .raf and .orf files; they now work and show the
+          camera's real white point. Recent cameras: two places where an unknown
+          value was silently guessed have been removed, so colours no longer
+          drift on bodies neither database knows. Preview: a possible crash when
+          zooming or cropping has been fixed.
+        </p>
+      </description>
+    </release>
     <release version="2026.08.4" date="2026-08-13">
       <description>
         <p>
