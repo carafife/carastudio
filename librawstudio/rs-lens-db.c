@@ -404,28 +404,29 @@ rs_lens_db_add_lens(RSLensDb *lens_db, RSLens *lens)
  * L'utilisateur peut la décocher, et son choix est conservé — cette fonction ne
  * s'exécute que la toute première fois qu'un objectif entre dans la base locale.
  */
-static void
+static gboolean
 try_lensfun_autoassign(RSLens *lens, RSMetadata *metadata)
 {
+	gboolean assigned = FALSE;
 	struct lfDatabase *lensdb;
 	const lfCamera **cameras;
 	const lfLens **lenses;
 	gchar *lens_search;
 
 	if (!lens || !metadata)
-		return;
+		return FALSE;
 
 	/* Sans plage focale exploitable, la recherche n'a aucun pouvoir
 	   discriminant : on s'abstient. */
 	if (metadata->lens_min_focal <= 0.0 || metadata->lens_max_focal <= 0.0)
-		return;
+		return FALSE;
 
 	if (!metadata->make_ascii || !metadata->model_ascii)
-		return;
+		return FALSE;
 
 	lensdb = lf_db_new();
 	if (!lensdb)
-		return;
+		return FALSE;
 	rs_lensfun_db_load(lensdb);
 
 	cameras = lf_db_find_cameras(lensdb, metadata->make_ascii, metadata->model_ascii);
@@ -447,6 +448,7 @@ try_lensfun_autoassign(RSLens *lens, RSMetadata *metadata)
 			rs_lens_set_lensfun_make(lens, g_strdup(lenses[0]->Maker));
 			rs_lens_set_lensfun_model(lens, g_strdup(lenses[0]->Model));
 			rs_lens_set_lensfun_enabled(lens, TRUE);
+			assigned = TRUE;
 		}
 		if (lenses)
 			lf_free(lenses);
@@ -456,6 +458,8 @@ try_lensfun_autoassign(RSLens *lens, RSMetadata *metadata)
 	}
 
 	lf_db_destroy(lensdb);
+
+	return assigned;
 }
 
 /**
@@ -486,6 +490,28 @@ RSLens *rs_lens_db_lookup_from_metadata(RSLensDb *lens_db, RSMetadata *metadata)
 			try_lensfun_autoassign(lens, metadata);
 			rs_lens_db_add_lens(lens_db, lens);
 		}
+	}
+	else if (!rs_lens_get_lensfun_model(lens))
+	{
+		/* Objectif DÉJÀ connu de la base locale, mais auquel aucun objectif
+		 * lensfun n'a jamais été associé.
+		 *
+		 * Sans ce cas, l'association automatique ne servait qu'aux objectifs
+		 * rencontrés pour la toute première fois — c'est-à-dire à personne parmi
+		 * ceux qui ont signalé le problème : leur base contient déjà une fiche,
+		 * créée lors d'une ouverture précédente. Ils auraient vu « Objectif
+		 * inconnu » exactement comme avant. Détecté en testant l'AppImage.
+		 *
+		 * On ne remplit qu'une fiche VIDE : dès que l'utilisateur a choisi un
+		 * objectif, son choix est trouvé ici et rien n'est retouché. Réserve
+		 * connue : une fiche vidée exprès (« Désélectionner ») est indiscernable
+		 * d'une fiche jamais renseignée, et se verra donc réassociée. Décocher
+		 * « Activer cet objectif », en revanche, conserve l'objectif choisi et
+		 * n'est jamais remis en cause. */
+		if (try_lensfun_autoassign(lens, metadata))
+			save_db(lens_db); /* rs_lens_db_add_lens() n'est pas appelé ici : sans
+			                     cette écriture, l'association serait refaite à
+			                     chaque ouverture au lieu d'être retenue. */
 	}
 
 	return lens;
