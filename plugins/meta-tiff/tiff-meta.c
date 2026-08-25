@@ -1935,11 +1935,24 @@ tif_load_meta(const gchar *service, RAWFILE *rawfile, guint offset, RSMetadata *
 
 	/* Fallback pour objectifs intégrés (ex. Panasonic LX100) : si les maker
 	   notes n'ont pas fourni la spec objectif mais que l'EXIF par photo
-	   contient focale et ouverture, on les utilise comme valeurs de référence. */
-	if (meta->lens_min_focal < 0 && meta->focallength > 0)
-		meta->lens_min_focal = meta->lens_max_focal = meta->focallength;
-	if (meta->lens_min_aperture < 0 && meta->aperture > 0)
-		meta->lens_min_aperture = meta->lens_max_aperture = meta->aperture;
+	   contient focale et ouverture, on les utilise comme valeurs de référence.
+
+	   SEULEMENT si l'objectif n'est identifié par rien d'autre (#28). Ce repli
+	   décrit l'objectif par la focale et l'ouverture DE LA PRISE DE VUE : sur un
+	   boîtier à objectifs interchangeables, chaque photo se retrouvait donc avec
+	   une identité d'objectif différente — « 70-70 mm f/8-8 » ici, « 200-200 mm
+	   f/5,6-5,6 » là. Aucune ne correspond à un objectif réel (« Objectif
+	   inconnu »), et une assignation manuelle ne valait que pour les photos
+	   prises au même réglage. Quand LibRaw a nommé l'objectif (méta-loader de
+	   priorité 5, exécuté juste avant), on ne l'écrase donc pas avec une spec
+	   inventée. */
+	if (!meta->lens_identifier && !meta->fixed_lens_identifier)
+	{
+		if (meta->lens_min_focal < 0 && meta->focallength > 0)
+			meta->lens_min_focal = meta->lens_max_focal = meta->focallength;
+		if (meta->lens_min_aperture < 0 && meta->aperture > 0)
+			meta->lens_min_aperture = meta->lens_max_aperture = meta->aperture;
+	}
 
 	/* Load thumbnail - try thumbnail first - then preview image - then decode the RAW image.
 	 * Sauf si load-libraw (priorité 5) a DÉJÀ posé la vignette via LibRaw : elle prime

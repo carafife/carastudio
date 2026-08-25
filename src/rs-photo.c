@@ -20,7 +20,6 @@
 #include <rawstudio.h>
 #include <string.h> /* memset() */
 #include <math.h> /* log2() — auto-exposition */
-#include <stdio.h> /* [WBPIP] trace comparative ART vs CaraStudio (#21) — temporaire */
 #include "rs-photo.h"
 #include "rs-cache.h"
 #include "rs-camera-db.h"
@@ -423,6 +422,44 @@ rs_photo_apply_to_filters(RS_PHOTO *photo, GList *filters, const gint snapshot)
 					cm.coeff[r][c] = photo->metadata->color_matrix[r*3+c];
 			rs_filter_set_recursive(filter, "color-matrix", &cm, NULL);
 		}
+		else if (rs_filetype_is_raw(photo->filename))
+		{
+			/* RAW sans AUCUNE référence colorimétrique : ni profil DCP (base figée
+			 * ~2013), ni matrice LibRaw (boîtier qu'elle ne connaît pas). C'était le
+			 * dernier endroit où une couleur fausse sortait en silence : on posait
+			 * use-profile FALSE, et le RGB NATIF DU CAPTEUR était alors interprété
+			 * comme s'il était déjà en ProPhoto (l'espace d'entrée posé juste en
+			 * dessous pour les RAW). Les primaires d'un capteur étant infiniment plus
+			 * étroites que celles du ProPhoto, le résultat sortait sursaturé et
+			 * fortement teinté — sans le moindre message à l'utilisateur.
+			 *
+			 * Faute de matrice propre au boîtier, on en pose une de « capteur
+			 * moyen » : la MOYENNE des ColorMatrix1 des 557 profils DCP livrés avec
+			 * CaraStudio. Ce n'est pas une supposition, c'est une mesure — les
+			 * gamuts des capteurs se ressemblent beaucoup plus entre eux qu'ils ne
+			 * ressemblent à quoi que ce soit d'autre.
+			 *
+			 * (Une première tentative supposait des primaires sRGB : sur un ARW de
+			 * Sony ILCE-6600, rapport B/V à 0,676 contre 0,340 pour la référence,
+			 * soit PIRE que l'absence de matrice, à 0,616. La matrice moyenne, elle,
+			 * donne 0,318 — visuellement indiscernable du rendu correct. Vérifié
+			 * aussi sur une scène de nuit au tungstène, en X-Trans : 1,37 / 2,81
+			 * contre 1,41 / 2,65. Ne pas revenir au sRGB.)
+			 *
+			 * Et comme on passe par le profil de secours matriciel, la photo récupère
+			 * au passage la balance des blancs, les curseurs Température / Teinte et
+			 * la courbe de tonalité DCP par défaut — tout ce que la branche
+			 * use-profile FALSE lui refusait.
+			 *
+			 * Convention XYZ -> caméra, la même que le cam_xyz de LibRaw. */
+			static const RS_MATRIX3 generic_sensor = {{
+				{  0.9786553, -0.3425438, -0.0542136 },
+				{ -0.5037235,  1.2668634,  0.2620144 },
+				{ -0.0760702,  0.1554167,  0.6908375 }
+			}};
+			RS_MATRIX3 cm = generic_sensor;
+			rs_filter_set_recursive(filter, "color-matrix", &cm, NULL);
+		}
 		else
 			rs_filter_set_recursive(filter, "use-profile", FALSE, NULL);
 
@@ -654,38 +691,6 @@ rs_photo_set_wb_from_color(RS_PHOTO *photo, const gint snapshot, const gdouble r
 
 	warmth = (b-r)/(r+b); /* r*(1+warmth) = b*(1-warmth) */
 	tint = -g/(r+r*warmth)+2.0; /* magic */
-
-	/* [WBPIP] instrumentation comparative ART vs CaraStudio (#21) — TEMPORAIRE.
-	 * Ne modifie PAS le calcul : on logge le triplet prélevé, le warmth/tint
-	 * obtenu, et la température/teinte colorimétrique équivalente du spot
-	 * (sRGB D65 -> XYZ -> xy -> Robertson) afin de comparer aux nombres
-	 * qu'ART affiche en mode verbose (AVG + temp/green) sur le MÊME point. */
-	{
-		FILE *wbpip = fopen("/tmp/carastudio_wb.log", "a");
-		if (wbpip)
-		{
-			static const gdouble srgb_to_xyz[3][3] = {
-				{ 0.4124564, 0.3575761, 0.1804375 },
-				{ 0.2126729, 0.7151522, 0.0721750 },
-				{ 0.0193339, 0.1191920, 0.9503041 }
-			};
-			RS_XYZ_VECTOR xyz;
-			RS_xy_COORD xy;
-			gfloat ctemp = 0.0f, ctint = 0.0f;
-
-			xyz.X = srgb_to_xyz[0][0]*r + srgb_to_xyz[0][1]*g + srgb_to_xyz[0][2]*b;
-			xyz.Y = srgb_to_xyz[1][0]*r + srgb_to_xyz[1][1]*g + srgb_to_xyz[1][2]*b;
-			xyz.Z = srgb_to_xyz[2][0]*r + srgb_to_xyz[2][1]*g + srgb_to_xyz[2][2]*b;
-			xy = XYZ_to_xy(&xyz);
-			rs_color_whitepoint_to_temp(&xy, &ctemp, &ctint);
-
-			fprintf(wbpip,
-				"[WBPIP] %-4s spot r=%.4f g=%.4f b=%.4f | warmth=%.4f tint=%.4f | xy=(%.4f,%.4f) temp=%.0fK tint_col=%.4f\n",
-				photo->embedded_profile ? "8bit" : "RAW",
-				r, g, b, warmth, tint, xy.x, xy.y, ctemp, ctint);
-			fclose(wbpip);
-		}
-	}
 
 	rs_photo_set_wb_from_wt(photo, snapshot, warmth, tint);
 }

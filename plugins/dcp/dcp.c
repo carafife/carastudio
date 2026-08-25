@@ -51,6 +51,7 @@ static void render(ThreadInfo* t);
 static void read_profile(RSDcp *dcp, RSDcpFile *dcp_file);
 static void set_matrix_only_profile(RSDcp *dcp, const RS_MATRIX3 *color_matrix);
 static void compute_matrix_fallback_pcs(RSDcp *dcp);
+static RS_xy_COORD matrix_fallback_scene_xy(RSDcp *dcp);
 static void free_dcp_profile(RSDcp *dcp);
 static void set_prophoto_wb(RSDcp *dcp, gfloat warmth, gfloat tint);
 static void calculate_huesat_maps(RSDcp *dcp, gfloat temp);
@@ -214,14 +215,30 @@ settings_changed(RSSettings *settings, RSSettingsMask mask, RSDcp *dcp)
 			neutral.z = neutral.z / max;
 			whitepoint = neutral_to_xy(dcp, &neutral);
 
-			if (dcp->use_profile && !dcp->has_matrix_fallback)
+			if (dcp->use_profile && dcp->has_matrix_fallback)
+			{
+				/* Profil de secours matrice : on affichait Temp/Teinte figées à
+				 * 5000/0, valeurs décoratives que le rendu ignorait — les deux
+				 * curseurs ne faisaient donc RIEN sur tout boîtier dépourvu de
+				 * profil DCP (.raf, .orf, boîtiers récents), alors qu'ils
+				 * marchaient sur JPEG (#30).
+				 *
+                                 * On stocke désormais la VRAIE température du blanc boîtier,
+				 * calculée comme dans compute_matrix_fallback_pcs — surtout pas
+				 * via neutral_to_xy(), dont la machinerie DCP dérive vers un
+				 * point blanc magenta avec une matrice arbitraire. Les curseurs
+				 * partent ainsi de la valeur réelle, et compute_matrix_fallback_pcs
+				 * les relit : ce qui est affiché est exactement ce qui est rendu,
+				 * il n'y a plus de valeur « déviante » à craindre. */
+				RS_xy_COORD scene_xy = matrix_fallback_scene_xy(dcp);
+				rs_color_whitepoint_to_temp(&scene_xy, &dcp->warmth, &dcp->tint);
+			}
+			else if (dcp->use_profile)
 			{
 				rs_color_whitepoint_to_temp(&whitepoint, &dcp->warmth, &dcp->tint);
-			} else {
-				/* Profil de secours matrice : la WB est intégrée à la matrice
-				 * (compute_matrix_fallback_pcs), donc on affiche Temp/Teinte NEUTRES
-				 * et on ne stocke JAMAIS la teinte déviante (~16 magenta) qui, si le
-				 * fallback était momentanément perdu, contaminerait le rendu. */
+			}
+			else
+			{
 				dcp->warmth = 5000;
 				dcp->tint = 0;
 			}
@@ -1651,19 +1668,47 @@ set_matrix_only_profile(RSDcp *dcp, const RS_MATRIX3 *color_matrix)
  *   camera_to_pcs = Bradford(blanc scène -> D50) . invert(ColorMatrix)
  * precalc() en fait ensuite camera_to_prophoto = xyz_to_prophoto . camera_to_pcs.
  * La WB est ainsi intégrée à la matrice (pas de double application via premul). */
-static void
-compute_matrix_fallback_pcs(RSDcp *dcp)
+/* Blanc scène xy du BOÎTIER, calculé DIRECTEMENT depuis la WB (cam_mul) et non
+ * via la machinerie temp/teinte du DCP (qui dérive avec une matrice arbitraire).
+ * neutre caméra = 1/pre_mul, puis XYZ = neutre . invert(ColorMatrix).
+ * Sert de point d'ancrage : c'est la température que les curseurs affichent
+ * quand l'utilisateur n'a encore rien touché. */
+static RS_xy_COORD
+matrix_fallback_scene_xy(RSDcp *dcp)
 {
-	/* 1. Blanc scène xy, calculé DIRECTEMENT depuis la WB boîtier (cam_mul), pas
-	 *    via la machinerie temp/teinte du DCP (qui déviait). neutre = 1/pre_mul. */
 	RS_VECTOR3 camN;
+	RS_MATRIX3 cam_to_xyz;
+	RS_XYZ_VECTOR W;
+
 	camN.x = 1.0 / CLAMP(dcp->pre_mul.x, 0.001, 100.0);
 	camN.y = 1.0 / CLAMP(dcp->pre_mul.y, 0.001, 100.0);
 	camN.z = 1.0 / CLAMP(dcp->pre_mul.z, 0.001, 100.0);
 	camN.x /= camN.y; camN.z /= camN.y; camN.y = 1.0;
 
-	/* camera_white = réponse capteur au blanc, normalisée max=1. INDISPENSABLE :
-	 * le rendu s'en sert comme point de clipping des hautes lumières (sinon 0 → noir). */
+	cam_to_xyz = matrix3_invert(&dcp->color_matrix1);
+	W = vector3_multiply_matrix(&camN, &cam_to_xyz);
+	return XYZ_to_xy(&W);
+}
+
+static void
+compute_matrix_fallback_pcs(RSDcp *dcp)
+{
+	/* 1. Blanc scène xy : celui des curseurs Température / Teinte. Ils sont
+	 *    initialisés sur le blanc boîtier (matrix_fallback_scene_xy, posé dans
+	 *    la branche « recalc »), donc à l'ouverture le rendu est INCHANGÉ ;
+	 *    les bouger agit maintenant réellement sur l'image (#30). */
+	RS_xy_COORD scene_xy = rs_color_temp_to_whitepoint(dcp->warmth, dcp->tint);
+	RS_XYZ_VECTOR Wscene = xy_to_XYZ(&scene_xy);
+
+	/* Réponse du capteur à ce blanc = ColorMatrix . XYZ(blanc), normalisée sur
+	 * le vert. camera_white en découle : le rendu s'en sert comme point de
+	 * clipping des hautes lumières (à zéro, l'image sortirait noire). */
+	RS_VECTOR3 camN = vector3_multiply_matrix(&Wscene, &dcp->color_matrix1);
+	if (camN.y > 0.0001)
+	{
+		camN.x /= camN.y; camN.z /= camN.y; camN.y = 1.0;
+	}
+
 	{
 		gfloat wmax = MAX(camN.x, MAX(camN.y, camN.z));
 		dcp->camera_white.x = CLAMP(0.001, camN.x / wmax, 1.0);
@@ -1671,9 +1716,6 @@ compute_matrix_fallback_pcs(RSDcp *dcp)
 		dcp->camera_white.z = CLAMP(0.001, camN.z / wmax, 1.0);
 	}
 
-	RS_MATRIX3 cam_to_xyz = matrix3_invert(&dcp->color_matrix1);
-	RS_XYZ_VECTOR W = vector3_multiply_matrix(&camN, &cam_to_xyz);
-	RS_xy_COORD scene_xy = XYZ_to_xy(&W);
 	dcp->white_xy = scene_xy;
 
 	/* 2. Formule DNG (identique à la branche « color-matrix seule » de set_white_xy),

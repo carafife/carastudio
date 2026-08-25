@@ -1,6 +1,6 @@
 # Maintainer: Carafife <carafife@users.noreply.github.com>
 pkgname=carastudio
-pkgver=2026.08.4
+pkgver=2026.08.5
 pkgrel=1
 pkgdesc="Convivial raw photo developer — a beefed-up fork of RawStudio"
 arch=('x86_64')

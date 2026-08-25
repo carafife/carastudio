@@ -1,6 +1,6 @@
 
 Name:           carastudio
-Version:        2026.08.4
+Version:        2026.08.5
 Release:        1%{?dist}
 Summary:        Convivial raw photo developer (a beefed-up fork of RawStudio)
 
@@ -92,6 +92,27 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop || :
 %{_datadir}/pixmaps/%{name}/
 
 %changelog
+* Tue Aug 25 2026 Carafife <carafife@users.noreply.github.com> - 2026.08.5-1
+- Bande d'images : plus de zone grise sous les vignettes pendant leur
+  chargement. La vignette d'attente occupe désormais la place exacte d'une
+  vignette réelle, et la rangée des priorités a retrouvé sa mise en forme
+  compacte.
+- Objectifs : la focale et l'ouverture de la prise de vue étaient prises pour
+  la spécification de l'objectif, ce qui donnait un « Objectif inconnu » et une
+  identité d'objectif différente à chaque focale. L'objectif est maintenant
+  correctement identifié, et il est associé automatiquement quand la base
+  lensfun ne propose qu'un seul candidat.
+- Panneau d'outils : la glissière verticale ne recouvre plus la colonne des
+  valeurs, à droite.
+- Balance des blancs : les curseurs Température et Teinte étaient sans effet sur
+  tout boîtier dépourvu de profil DCP (fichiers .raf et .orf notamment). Ils
+  agissent désormais, et affichent la vraie température du blanc de l'appareil.
+- Couleur des boîtiers récents : deux endroits où une valeur inconnue était
+  devinée en silence ont été supprimés. Le niveau de blanc est mesuré dans
+  l'image quand LibRaw ne le connaît pas, et un RAW n'est plus jamais rendu sans
+  référence colorimétrique.
+- Aperçu : la zone à recalculer est bornée à l'image dans les deux dimensions,
+  ce qui corrige un plantage possible lors d'un zoom ou d'un recadrage.
 * Thu Aug 13 2026 Carafife <carafife@users.noreply.github.com> - 2026.08.4-1
 - Bande d'images : les priorités passent à l'horizontale au-dessus des
   vignettes, ce qui supprime la grande zone grise vide, surtout quand les noms

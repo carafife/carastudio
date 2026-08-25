@@ -361,6 +361,13 @@ rs_toolbox_init (RSToolbox *self)
 
 	/* Set up our scrolled window */
 	gtk_scrolled_window_set_policy(scrolled_window, GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+	/* La glissière verticale ne doit PAS flotter au-dessus du contenu (#30) :
+	   en mode « overlay » elle ne réserve aucune place et vient se poser sur la
+	   colonne des valeurs, à droite — « 0,00 » se lisait « 0 ». On lui donne sa
+	   propre place, et on demande au panneau sa largeur naturelle pour que la
+	   colonne des valeurs entre dans le cadre au lieu d'être rognée. */
+	gtk_scrolled_window_set_overlay_scrolling(scrolled_window, FALSE);
+	gtk_scrolled_window_set_propagate_natural_width(scrolled_window, TRUE);
 	gtk_scrolled_window_set_hadjustment(scrolled_window, NULL);
 	gtk_scrolled_window_set_vadjustment(scrolled_window, NULL);
 

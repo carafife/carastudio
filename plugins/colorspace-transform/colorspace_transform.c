@@ -488,13 +488,38 @@ convert_colorspace8(RSColorspaceTransform *colorspace_transform, RS_IMAGE16 *inp
 	g_return_if_fail(input_image->h == gdk_pixbuf_get_height(output_image));
 
 	GdkRectangle *roi = _roi;
-	if (!roi) 
+	GdkRectangle roi_clamped;
+	if (!roi)
 	{
 		roi = g_new(GdkRectangle, 1);
 		roi->x = 0;
 		roi->y = 0;
 		roi->width = input_image->w;
 		roi->height = input_image->h;
+	}
+	else
+	{
+		/* La zone d'intérêt arrive telle quelle depuis la requête du filtre et
+		 * n'était JAMAIS bornée à l'image. Or le pixbuf de sortie est alloué à
+		 * input_image->w x ->h : dès que roi->x + roi->width dépasse la largeur
+		 * (zone calculée pour une image de taille différente — rendu rapide,
+		 * recadrage, rééchantillonnage), les chemins vectoriels écrivent hors du
+		 * tampon. transform8_srgb_avx stocke 16 octets par bloc de 4 pixels : sur
+		 * la dernière ligne, l'écriture sort de l'allocation → SIGSEGV dans un
+		 * vmovups (issue #26, plantage remonté sur AppImage 2026.08.2).
+		 * Le découpage en fils clampait déjà les LIGNES sur input_image->h ; les
+		 * colonnes, elles, ne l'étaient pas. On borne donc les deux ici, une fois
+		 * pour toutes, avant que la zone ne serve à quoi que ce soit. */
+		roi_clamped = *roi;
+		if (roi_clamped.x < 0) { roi_clamped.width += roi_clamped.x; roi_clamped.x = 0; }
+		if (roi_clamped.y < 0) { roi_clamped.height += roi_clamped.y; roi_clamped.y = 0; }
+		roi_clamped.x = MIN(roi_clamped.x, input_image->w);
+		roi_clamped.y = MIN(roi_clamped.y, input_image->h);
+		roi_clamped.width  = CLAMP(roi_clamped.width,  0, input_image->w - roi_clamped.x);
+		roi_clamped.height = CLAMP(roi_clamped.height, 0, input_image->h - roi_clamped.y);
+		if (roi_clamped.width <= 0 || roi_clamped.height <= 0)
+			return;
+		roi = &roi_clamped;
 	}
 
 	/* If a CMS is needed, do the transformation using LCMS */
@@ -548,7 +573,10 @@ convert_colorspace8(RSColorspaceTransform *colorspace_transform, RS_IMAGE16 *inp
 			t[i].input_space = input_space;
 			t[i].output_space = output_space;
 			y_offset += y_per_thread;
-			y_offset = MIN(input_image->h, y_offset);
+			/* Borner sur le BAS DE LA ZONE, pas sur la hauteur de l'image :
+			 * l'arrondi de y_per_thread fait dépasser le dernier fil, qui
+			 * traitait alors des lignes hors de la zone demandée. */
+			y_offset = MIN((guint)(roi->y + roi->height), y_offset);
 			t[i].end_y = y_offset;
 			t[i].matrix = &mat;
 			t[i].table8 = NULL;
