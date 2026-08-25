@@ -23,6 +23,59 @@
 /* Chargement de l'image RAW                                           */
 /* ------------------------------------------------------------------ */
 
+/* ------------------------------------------------------------------ */
+/* Niveau de blanc MESURÉ dans l'image                                 */
+/* ------------------------------------------------------------------ */
+/*
+ * Dernier recours quand LibRaw ne fournit pas de niveau de blanc plausible
+ * (maximum <= niveau de noir, ou zéro) — c'est-à-dire quand elle ne connaît pas
+ * vraiment le boîtier.
+ *
+ * Le code se contentait alors de ramener l'amplitude à 1, ce qui revient à
+ * multiplier l'écart au noir par 65535 : tout ce qui dépasse le noir d'un pas
+ * part au blanc. C'est la même panne que celle des boîtiers absents de la base
+ * rawspeed (issues #24, #29) — image délavée, canaux qui saturent, dominante.
+ * Une devinette silencieuse de plus, et celle-là ne dépend d'aucune liste : elle
+ * se déclenchera pour tout boîtier trop récent pour la LibRaw embarquée.
+ *
+ * On mesure donc la saturation dans les données du fichier lui-même. Pas le
+ * maximum brut : quelques pixels chauds suffiraient à le tirer vers le haut et à
+ * assombrir toute l'image. On descend l'histogramme depuis le sommet jusqu'à
+ * avoir rencontré un plateau d'au moins 64 pixels — un vrai point de saturation
+ * en concerne des milliers, un pixel chaud est seul.
+ *
+ * Sans liste, sans réglage par appareil, et strictement inerte dès que LibRaw
+ * connaît les niveaux : cette fonction n'est appelée que dans le cas contraire.
+ */
+static gint
+measure_white_level(const uint16_t *raw_pixels, guint raw_width,
+                    guint left_margin, guint top_margin,
+                    guint width, guint height)
+{
+	guint *hist = g_new0(guint, 65536);
+	guint y, x;
+	gint level = 0;
+	guint64 seen = 0;
+	const guint64 needed = 64;
+
+	for (y = 0; y < height; y++)
+	{
+		const uint16_t *src = raw_pixels + (top_margin + y) * raw_width + left_margin;
+		for (x = 0; x < width; x++)
+			hist[src[x]]++;
+	}
+
+	for (level = 65535; level > 0; level--)
+	{
+		seen += hist[level];
+		if (seen >= needed)
+			break;
+	}
+
+	g_free(hist);
+	return level;
+}
+
 static RSFilterResponse *
 load_libraw_file(const gchar *filename)
 {
@@ -202,7 +255,16 @@ load_libraw_file(const gchar *filename)
 	gint wl = (gint) raw->color.maximum - black;
 	if (raw->color.data_maximum > black && raw->color.data_maximum < (int) raw->color.maximum)
 		wl = (gint) raw->color.data_maximum - black;
-	if (wl < 1) wl = 1;
+	if (wl < 1)
+	{
+		/* LibRaw ne connaît pas les niveaux de ce boîtier : on les mesure dans
+		 * l'image plutôt que de laisser l'amplitude tomber à 1 (× 65535 sur
+		 * l'écart au noir = image entièrement brûlée, cf. measure_white_level). */
+		wl = measure_white_level(raw_pixels, raw_width, left_margin, top_margin,
+		                         width, height) - black;
+		if (wl < 1)
+			wl = 1; /* image uniformément au niveau de noir : rien à récupérer */
+	}
 	const gdouble wscale = 65535.0 / (gdouble) wl;
 	for (y = 0; y < height; y++) {
 		gushort *dst        = GET_PIXEL(image, 0, y);
