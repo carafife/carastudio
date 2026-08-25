@@ -131,6 +131,7 @@ const static guint priorities[NUM_VIEWS] = {PRIO_ALL, PRIO_1, PRIO_2, PRIO_3, PR
 
 static gboolean scroll_event(GtkWidget *widget, GdkEventScroll *event, gpointer user_data);
 static void selection_changed(GtkIconView *iconview, gpointer data);
+GdkPixbuf *get_thumbnail_eyecandy(GdkPixbuf *thumbnail, gint shadow);
 static void thumbnail_overlay(GdkPixbuf *pixbuf, GdkPixbuf *lowerleft, GdkPixbuf *lowerright, GdkPixbuf *topleft, GdkPixbuf *topright, gint shadow);
 static void thumbnail_update(GdkPixbuf *pixbuf, GdkPixbuf *pixbuf_clean, gint priority, gboolean exported, gboolean enfuse, gint shadow);
 static void switch_page(GtkNotebook *notebook, gpointer page, guint page_num, gpointer data);
@@ -1259,9 +1260,41 @@ rs_store_load_file(RSStore *store, gchar *fullname)
 	  end[3] = 0;
 	}
 
-	/* Global default icon */
+	/* Vignette d'attente.
+	 *
+	 * Elle doit occuper EXACTEMENT la même place qu'une vraie vignette, sinon
+	 * la bande d'images — dimensionnée sur la plus haute des vignettes —
+	 * laisse une large zone grise sous les logos tant que le chargement n'est
+	 * pas terminé (#27). Le logo faisait 96 px de haut là où une vignette
+	 * chargée en fait 162 (128 px d'image + cadre + ombre) : 66 px de gris,
+	 * pendant plusieurs minutes sur un dossier de quelques centaines de RAW.
+	 *
+	 * On centre donc le logo sur une diapo vide de 128 px de côté, qu'on passe
+	 * dans le même habillage (cadre mat + ombre portée) que les vignettes
+	 * réelles. La bande garde ainsi sa hauteur du premier au dernier chargement.
+	 */
 	if (!icon_default)
-		icon_default = gdk_pixbuf_new_from_file_at_size(rs_reloc(PACKAGE_DATA_DIR G_DIR_SEPARATOR_S "icons" G_DIR_SEPARATOR_S "carastudio.png"), 96, 96, NULL);
+	{
+		GdkPixbuf *logo = gdk_pixbuf_new_from_file_at_size(rs_reloc(PACKAGE_DATA_DIR G_DIR_SEPARATOR_S "icons" G_DIR_SEPARATOR_S "carastudio.png"), 96, 96, NULL);
+
+		if (logo)
+		{
+			const gint slide_size = 128;
+			gint logo_w = gdk_pixbuf_get_width(logo);
+			gint logo_h = gdk_pixbuf_get_height(logo);
+			GdkPixbuf *slide = gdk_pixbuf_new(GDK_COLORSPACE_RGB, TRUE, 8, slide_size, slide_size);
+
+			gdk_pixbuf_fill(slide, 0x00000000);
+			gdk_pixbuf_composite(logo, slide,
+				(slide_size-logo_w)/2, (slide_size-logo_h)/2, logo_w, logo_h,
+				(slide_size-logo_w)/2, (slide_size-logo_h)/2, 1.0, 1.0,
+				GDK_INTERP_NEAREST, 255);
+
+			icon_default = get_thumbnail_eyecandy(slide, DROPSHADOWOFFSET);
+			g_object_unref(slide);
+			g_object_unref(logo);
+		}
+	}
 
 	/* Add file to store */
 	gdk_threads_enter();

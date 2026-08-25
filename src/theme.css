@@ -699,7 +699,11 @@ headerbar button {
     background-color: @cs_accent_dark;
 }
 
-#filmstrip-notebook > header.left > tabs > tab {
+/* Onglets de priorités : ils sont passés à l'horizontale (header.top) en
+   2026.08.4, mais ces règles compactes visaient encore header.left et ne
+   s'appliquaient donc plus. La rangée retombait sur le style générique
+   (padding 5px 12px) et coûtait 42 px de haut pour un libellé de 19 px. */
+#filmstrip-notebook > header.top > tabs > tab {
     padding: 2px 6px;
     min-height: 0;
     min-width: 0;
@@ -707,12 +711,12 @@ headerbar button {
     color: @cs_fg_dim;
 }
 
-#filmstrip-notebook > header.left > tabs > tab:checked {
+#filmstrip-notebook > header.top > tabs > tab:checked {
     background-color: @cs_accent_dark;
     color: @cs_fg;
 }
 
-#filmstrip-notebook > header.left {
+#filmstrip-notebook > header.top {
     padding: 0;
     background-color: @cs_bg_dark;
 }
