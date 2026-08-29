@@ -170,6 +170,7 @@ struct _RSPreviewWidget
 	gfloat scalpel_hover_rgb[3];    /* couleur À L'ENTRÉE du module (cache2, post-DCP, linéaire 0..65535) */
 	gfloat scalpel_hover_rgb_in_disp[3]; /* ENTRÉE convertie espace écran par la MÊME CMS que l'affichage (cercle extérieur fidèle) */
 	gfloat scalpel_hover_rgb_out[3];/* couleur À LA SORTIE (cache3, encodée écran 0..65535) */
+	gfloat scalpel_hover_luma;      /* luminance moyenne autour du curseur (pour le cadre blanc/noir) */
 	gdouble scalpel_hover_x;        /* position du curseur dans le canvas */
 	gdouble scalpel_hover_y;
 	gdouble scalpel_switch_accum;   /* accumulateur ALT+molette : changement de canal (lissé) */
@@ -280,6 +281,7 @@ static void scalpel_set_native_cursor(RSPreviewWidget *preview, gboolean hidden)
 static GdkCursor *scalpel_blank_cursor(GdkDisplay *display);
 static void scalpel_draw_cursor(cairo_t *cr, RSPreviewWidget *preview);
 static gboolean scalpel_sample_rgb(RSPreviewWidget *preview, RSFilter *source, const gint view, gint sx, gint sy, gfloat out[3]);
+static gboolean scalpel_compute_mean_luma(RSPreviewWidget *preview, const gint view, gint sx, gint sy, gfloat *out_luma);
 static void canvas_draw(RSPreviewWidget *preview, GdkRectangle *rect, gboolean now);
 static void canvas_draw_handler(GtkWidget *widget, cairo_t *cr, RSPreviewWidget *preview);
 static void photo_spatial_changed(RS_PHOTO *photo, RSPreviewWidget *preview);
@@ -430,6 +432,7 @@ rs_preview_widget_init(RSPreviewWidget *preview)
 	preview->scalpel_hover_rgb[0] = 0; preview->scalpel_hover_rgb[1] = 0; preview->scalpel_hover_rgb[2] = 0;
 	preview->scalpel_hover_rgb_in_disp[0] = 0; preview->scalpel_hover_rgb_in_disp[1] = 0; preview->scalpel_hover_rgb_in_disp[2] = 0;
 	preview->scalpel_hover_rgb_out[0] = 0; preview->scalpel_hover_rgb_out[1] = 0; preview->scalpel_hover_rgb_out[2] = 0;
+	preview->scalpel_hover_luma = 0.5f;
 	preview->scalpel_hover_x = 0; preview->scalpel_hover_y = 0;
 	preview->scalpel_switch_accum = 0.0;
 	preview->argentico_spot_count = 0;
@@ -2394,6 +2397,12 @@ motion(GtkWidget *widget, GdkEventMotion *event, gpointer user_data)
 			preview->scalpel_hover_rgb_out[0] = srgb_out[0];
 			preview->scalpel_hover_rgb_out[1] = srgb_out[1];
 			preview->scalpel_hover_rgb_out[2] = srgb_out[2];
+			/* Luminance moyenne autour du curseur pour le cadre adaptatif
+			 * (blanc sur fond sombre, noir sur fond clair) — évite le
+			 * scintillement sur les textures. */
+			gfloat mean_luma;
+			if (scalpel_compute_mean_luma(preview, view, scaled_x, scaled_y, &mean_luma))
+				preview->scalpel_hover_luma = mean_luma;
 			canvas_draw(preview, NULL, FALSE);
 		}
 	}
@@ -2969,6 +2978,68 @@ scalpel_sample_rgb(RSPreviewWidget *preview, RSFilter *source, const gint view, 
 	return TRUE;
 }
 
+/* Calcule la luminance moyenne (Rec.601) dans une fenêtre autour du curseur
+ * sur l'image de sortie (cache3). Utilisé pour décider la couleur du cadre
+ * (blanc sur fond sombre, noir sur fond clair) sans scintillement sur les
+ * textures. La fenêtre correspond à l'empreinte du curseur (rayon ≈ 16 px). */
+static gboolean
+scalpel_compute_mean_luma(RSPreviewWidget *preview, const gint view, gint sx, gint sy, gfloat *out_luma)
+{
+	if ((view < 0) || (view > (preview->views - 1)))
+		return FALSE;
+	if (!preview->request[view] || !preview->filter_cache3[view])
+		return FALSE;
+
+	RSFilterRequest *request = rs_filter_request_clone(preview->request[view]);
+	rs_filter_request_set_quick(request, TRUE);
+
+	gint max_w = 0, max_h = 0;
+	rs_filter_get_size_simple(preview->filter_cache3[view], request, &max_w, &max_h);
+	if ((max_w <= 0) || (max_h <= 0))
+	{
+		g_object_unref(request);
+		return FALSE;
+	}
+
+	/* Fenêtre ≈ curseur (rayon 16 px en coordonnées image) */
+	const gint half = 16;
+	GdkRectangle roi;
+	roi.x      = CLAMP(sx - half, 0, max_w - 1);
+	roi.y      = CLAMP(sy - half, 0, max_h - 1);
+	roi.width  = MIN(2 * half + 1, max_w - roi.x);
+	roi.height = MIN(2 * half + 1, max_h - roi.y);
+	rs_filter_request_set_roi(request, &roi);
+
+	RSFilterResponse *response = rs_filter_get_image(preview->filter_cache3[view], request);
+	g_object_unref(request);
+	if (!response)
+		return FALSE;
+	RS_IMAGE16 *image = rs_filter_response_get_image(response);
+	g_object_unref(response);
+	if (!image)
+		return FALSE;
+
+	gdouble luma_sum = 0.0;
+	gint row, col, n = 0;
+	for (row = roi.y; row < roi.y + roi.height; row++)
+		for (col = roi.x; col < roi.x + roi.width; col++)
+		{
+			gushort *pixel = rs_image16_get_pixel(image, col, row, TRUE);
+			const float r = pixel[R] / 65535.0f;
+			const float g = pixel[G] / 65535.0f;
+			const float b = pixel[B] / 65535.0f;
+			luma_sum += 0.3f * r + 0.59f * g + 0.11f * b;
+			n++;
+		}
+
+	g_object_unref(image);
+	if (n > 0)
+		*out_luma = (gfloat)(luma_sum / n);
+	else
+		*out_luma = 0.5f;
+	return TRUE;
+}
+
 /* ------------------------------------------------------------------ */
 /* Pointeur on-canvas (porté du fork Libre DT-Lab, colorequal) :       */
 /* masque le curseur natif pendant le survol et dessine à la place un  */
@@ -3142,9 +3213,10 @@ scalpel_draw_cursor(cairo_t *cr, RSPreviewWidget *preview)
 	const gfloat out_b = preview->scalpel_hover_rgb_out[2] / 65535.0f;
 	const gfloat inner_color[3] = { out_r, out_g, out_b };
 
-	/* Cadre noir sur fond clair, blanc sur fond sombre — luma de la SORTIE,
-	 * c'est elle qui est visible derrière le pointeur. */
-	const gfloat bg_luma = 0.3f * out_r + 0.59f * out_g + 0.11f * out_b;
+	/* Cadre noir sur fond clair, blanc sur fond sombre — luminance MOYENNE
+	 * autour du curseur (échantillonnée sur l'image de sortie), évite le
+	 * scintillement sur les textures (#21969). */
+	const gfloat bg_luma = preview->scalpel_hover_luma;
 	const gfloat frame_shade = (bg_luma > 0.5f) ? 0.0f : 1.0f;
 	const gfloat frame_color[3] = { frame_shade, frame_shade, frame_shade };
 
