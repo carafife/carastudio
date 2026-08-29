@@ -48,6 +48,11 @@
 
 #define DROPSHADOWOFFSET 6
 
+/* Largeur, en pixels, d'un emplacement de la bande d'images : une vignette de
+ * 128 px habillée par get_thumbnail_eyecandy() — cadre (4 px) puis ombre portée
+ * (DROPSHADOWOFFSET*5). */
+#define THUMBNAIL_SLOT_WIDTH (128 + 4 + DROPSHADOWOFFSET*5)
+
 /* Overlay icons */
 static GdkPixbuf *icon_priority_1 = NULL;
 static GdkPixbuf *icon_priority_2 = NULL;
@@ -247,6 +252,22 @@ rs_store_init(RSStore *store)
 		gtk_icon_view_set_item_padding(GTK_ICON_VIEW(store->iconview[n]), 0);
 		gtk_icon_view_set_margin(GTK_ICON_VIEW(store->iconview[n]), 1);
 		gtk_icon_view_set_row_spacing(GTK_ICON_VIEW(store->iconview[n]), 0);
+
+		/* Largeur d'un emplacement, fixée à celle d'une vignette habillée (#27).
+		 *
+		 * Sans cette valeur, GtkIconView déduit la largeur d'un emplacement de
+		 * la largeur qu'on lui alloue divisée par son nombre de colonnes — or
+		 * on lui en impose autant que de photos du dossier. Sur 283 RAW dans
+		 * une bande de 1400 px, cela donne 5 px par emplacement : le nom de
+		 * fichier est alors *mesuré* replié sur une dizaine de lignes, et GTK
+		 * réserve la hauteur correspondante. D'où une large zone grise sous les
+		 * noms, d'autant plus haute que le dossier contient de photos — alors
+		 * que les noms s'affichent bel et bien sur une seule ligne, la bande
+		 * défilant horizontalement.
+		 *
+		 * En fixant la largeur, le nom est mesuré sur la largeur réelle d'une
+		 * vignette : une ligne, et la bande colle à son contenu. */
+		gtk_icon_view_set_item_width(GTK_ICON_VIEW(store->iconview[n]), THUMBNAIL_SLOT_WIDTH);
 
 		/* New cell-renderer for thumbnails */
 		cell_renderer = gtk_cell_renderer_pixbuf_new();
@@ -1262,32 +1283,38 @@ rs_store_load_file(RSStore *store, gchar *fullname)
 
 	/* Vignette d'attente.
 	 *
-	 * Elle doit occuper EXACTEMENT la même place qu'une vraie vignette, sinon
-	 * la bande d'images — dimensionnée sur la plus haute des vignettes —
-	 * laisse une large zone grise sous les logos tant que le chargement n'est
-	 * pas terminé (#27). Le logo faisait 96 px de haut là où une vignette
-	 * chargée en fait 162 (128 px d'image + cadre + ombre) : 66 px de gris,
-	 * pendant plusieurs minutes sur un dossier de quelques centaines de RAW.
+	 * Elle doit occuper la même place qu'une vraie vignette, sinon la bande
+	 * d'images — dimensionnée sur la plus haute de ses vignettes — laisse une
+	 * zone grise sous les logos tant que le chargement n'est pas terminé (#27).
 	 *
-	 * On centre donc le logo sur une diapo vide de 128 px de côté, qu'on passe
-	 * dans le même habillage (cadre mat + ombre portée) que les vignettes
-	 * réelles. La bande garde ainsi sa hauteur du premier au dernier chargement.
+	 * La diapo était carrée (128x128), soit la place d'une vignette PORTRAIT :
+	 * sur un dossier en paysage — le cas courant — la bande s'affichait donc
+	 * trop haute pendant tout le chargement, puis se tassait d'un coup une fois
+	 * les vraies vignettes en place.
+	 *
+	 * On la dimensionne désormais comme une vignette PAYSAGE en 3:2 (128x85),
+	 * le format de très loin le plus fréquent : un dossier paysage ne bouge
+	 * plus du tout, et un dossier portrait fait grandir la bande une seule
+	 * fois, à l'arrivée de sa première vraie vignette.
 	 */
 	if (!icon_default)
 	{
-		GdkPixbuf *logo = gdk_pixbuf_new_from_file_at_size(rs_reloc(PACKAGE_DATA_DIR G_DIR_SEPARATOR_S "icons" G_DIR_SEPARATOR_S "carastudio.png"), 96, 96, NULL);
+		GdkPixbuf *logo = gdk_pixbuf_new_from_file_at_size(rs_reloc(PACKAGE_DATA_DIR G_DIR_SEPARATOR_S "icons" G_DIR_SEPARATOR_S "carastudio.png"), 72, 72, NULL);
 
 		if (logo)
 		{
-			const gint slide_size = 128;
+			const gint slide_w = 128;
+			const gint slide_h = 85; /* 3:2 paysage, comme la majorité des vignettes */
 			gint logo_w = gdk_pixbuf_get_width(logo);
 			gint logo_h = gdk_pixbuf_get_height(logo);
-			GdkPixbuf *slide = gdk_pixbuf_new(GDK_COLORSPACE_RGB, TRUE, 8, slide_size, slide_size);
+			gint off_x = (slide_w-logo_w)/2;
+			gint off_y = (slide_h-logo_h)/2;
+			GdkPixbuf *slide = gdk_pixbuf_new(GDK_COLORSPACE_RGB, TRUE, 8, slide_w, slide_h);
 
 			gdk_pixbuf_fill(slide, 0x00000000);
 			gdk_pixbuf_composite(logo, slide,
-				(slide_size-logo_w)/2, (slide_size-logo_h)/2, logo_w, logo_h,
-				(slide_size-logo_w)/2, (slide_size-logo_h)/2, 1.0, 1.0,
+				off_x, off_y, logo_w, logo_h,
+				off_x, off_y, 1.0, 1.0,
 				GDK_INTERP_NEAREST, 255);
 
 			icon_default = get_thumbnail_eyecandy(slide, DROPSHADOWOFFSET);
