@@ -68,6 +68,26 @@ rs_toolbox_register_actions(RSToolbox *toolbox);
 extern void
 rs_toolbox_hover_value_updated(RSToolbox *toolbox, const guchar *rgb_value);
 
+/* CaraStudio — mode interactif « Color scalpel » :
+ * - rs_toolbox_scalpel_hover : teinte du pixel survolé (rgb flottant) pour le
+ *   repère vertical des courbes ; NULL = sortie (repère effacé).
+ * - rs_toolbox_scalpel_scroll : molette sur l'image (delta signé, haut = +) ;
+ *   ajuste la courbe du canal actif autour de la teinte du pixel.
+ * - rs_toolbox_scalpel_value_at : valeur [-1,1] de la courbe du canal actif
+ *   (snapshot courant, page de notebook courante) à la teinte du pixel, pour le
+ *   pointeur on-canvas ; renvoie FALSE si indisponible (pas de photo, etc.). */
+extern void
+rs_toolbox_scalpel_hover(RSToolbox *toolbox, const gfloat rgb[3]);
+extern void
+rs_toolbox_scalpel_scroll(RSToolbox *toolbox, const gfloat rgb[3], gdouble delta);
+extern gboolean
+rs_toolbox_scalpel_value_at(RSToolbox *toolbox, const gfloat rgb[3], gdouble *value_out, gint *channel_out);
+
+/* Raccourci ALT+molette : change de page du notebook des courbes du snapshot
+ * courant (0 = Teinte, 1 = Saturation, 2 = Luminance). delta = ±1. */
+extern void
+rs_toolbox_scalpel_switch_channel(RSToolbox *toolbox, gint delta);
+
 extern GtkWidget *
 rs_toolbox_get_curve(RSToolbox *toolbox, gint setting);
 

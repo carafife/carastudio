@@ -212,6 +212,12 @@ rs_preview_widget_set_argentico_pick(RSPreviewWidget *preview, gboolean active);
 extern void
 rs_preview_widget_set_wb_pick(RSPreviewWidget *preview, gboolean active);
 
+/* Active/désactive le mode interactif Color scalpel : le survol de l'image
+ * nourrit le repère des courbes (rs_toolbox_scalpel_hover) et la molette
+ * verticale ajuste la courbe du canal actif au lieu de zoomer. */
+extern void
+rs_preview_widget_set_scalpel_interactive(RSPreviewWidget *preview, gboolean active);
+
 extern void
 rs_preview_widget_blank(RSPreviewWidget *preview);
 

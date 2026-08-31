@@ -381,12 +381,20 @@ convert_colorspace16(RSColorspaceTransform *colorspace_transform, RS_IMAGE16 *in
 		RS_MATRIX3 mat;
 		matrix3_multiply(&b, &a_premul, &mat);
 
-		transform16_c(
-			GET_PIXEL(input_image, 0, 0),
-			GET_PIXEL(output_image, 0, 0),
-			input_image->h * input_image->pitch,
-			input_image->pixelsize,
-			&mat);
+		/* Parcours LIGNE PAR LIGNE du ROI (respecte le rowstride), plutôt que de
+		 * balayer tout le buffer depuis (0,0) via transform16_c. En non-CMS, un
+		 * ROI partiel (pointeur scalpel ~97×97) lisait de la mémoire non
+		 * initialisée au-delà du ROI, et transform16_c ignore le padding de fin
+		 * de ligne quand pitch > width (désalignement des canaux sur largeur non
+		 * multiple de 4). */
+		gint _row;
+		for (_row = roi->y; _row < roi->y + roi->height; _row++)
+			transform16_c(
+				GET_PIXEL(input_image,  roi->x, _row),
+				GET_PIXEL(output_image, roi->x, _row),
+				roi->width,
+				input_image->pixelsize,
+				&mat);
 	}
 	return TRUE;
 }
