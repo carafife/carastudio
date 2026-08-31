@@ -1631,6 +1631,20 @@ size_allocate(GtkWidget *widget, GtkAllocation *allocation, gpointer user_data)
 	g_object_set(G_OBJECT(preview->hadjustment), "page_size", width, "page-increment", width/1.2, NULL);
 	g_object_set(G_OBJECT(preview->vadjustment), "page_size", height, "page-increment", height/1.2, NULL);
 
+	/* La taille cible du rééchantillonnage ne suit le canvas QU'EN mode ajusté.
+	 * À un zoom fixe (100 %, ou tout facteur réglé par l'utilisateur), elle vaut
+	 * taille native x facteur et n'a rien à voir avec la place disponible.
+	 *
+	 * Sans cette garde, le premier clic sur « 100 % » ne montrait rien (issue
+	 * #34) : afficher les deux barres de défilement rétrécit le canvas, ce qui
+	 * déclenche une réallocation JUSTE APRÈS que set_zoom() a fixé la cible.
+	 * L'image repassait donc à la taille « ajustée » alors que les barres, elles,
+	 * gardaient la course du 100 % — l'image se retrouvait dessinée très au-dessus
+	 * de la zone visible, d'où le gris. Un simple coup de molette « réparait »
+	 * l'affichage, la molette repassant par set_zoom sans réallouer. */
+	if (!preview->zoom_to_fit)
+		return;
+
 	get_max_size(preview, &max_width, &max_height);
 
 	for(view=0;view<preview->views;view++)
