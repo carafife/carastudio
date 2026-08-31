@@ -167,6 +167,9 @@ struct _RSToolbox {
 	/* Égaliseur de couleurs (color zones) [snapshot][canal 0=teinte 1=sat 2=lum] */
 	GtkWidget *hsl_enable[3];
 	GtkWidget *hslcurve[3][3];
+	GtkWidget *hsl_notebook[3];     /* notebook des 3 courbes (canal actif mode interactif) */
+	GtkWidget *hsl_interactive[3];  /* bouton bascule « Survol + molette » */
+	gfloat     hsl_cursor_hue;      /* teinte survolée [0,1), <0 = aucune (mode interactif) */
 	GtkRange *argentico[3][NARGENTICO];
 	GtkWidget *argentico_enable[3];
 	GtkWidget *argentico_pick[3];   /* bouton bascule « Échantillonner » */
@@ -2493,6 +2496,155 @@ hslcurve_remove(HslCurve *hc, gint idx)
 	hc->n--;
 }
 
+/* Teinte d'un pixel en tours [0,1) — même définition que cz_rgb2hsl() du plugin
+ * effects : c'est l'axe horizontal des courbes du Color scalpel. Échelle de
+ * luminance quelconque (seuls les ratios comptent). */
+static float
+scalpel_rgb2hue(float r, float g, float b)
+{
+	float mx = MAX(MAX(r,g),b), mn = MIN(MIN(r,g),b), d = mx - mn;
+	if (d < 1e-6f) return 0.0f;
+	float hh;
+	if (mx == r)      hh = (g-b)/d + (g < b ? 6.0f : 0.0f);
+	else if (mx == g) hh = (b-r)/d + 2.0f;
+	else              hh = (r-g)/d + 4.0f;
+	return hh / 6.0f;
+}
+
+/* Distance angulaire minimale visible sur le cercle des teintes */
+static inline float
+hslcurve_hue_dist(float a, float b)
+{
+	float d = fabsf(a - b);
+	return (d > 0.5f) ? 1.0f - d : d;
+}
+
+/* Ajuste les nœuds de la courbe avec une pondération gaussienne centrée sur
+ * la teinte visée (σ = 35°, comme le color equalizer de darktable). Garantit un
+ * nœud près de cette teinte pour un retour immédiat. « move » est déjà signé
+ * (molette haut = +). */
+static void
+hslcurve_adjust_gaussian(HslCurve *hc, float hue, float move)
+{
+	const float sigma = 35.0f / 360.0f;
+	if (hc->n <= 0)
+	{
+		hslcurve_add(hc, hue, CLAMP(move, -1.0f, 1.0f));
+		return;
+	}
+	gint i;
+	float nd = 1e9f;
+	for (i = 0; i < hc->n; i++)
+	{
+		float d = hslcurve_hue_dist(hue, hc->xs[i]);
+		if (d < nd) nd = d;
+	}
+	if (nd > 1.5f * sigma)
+		hslcurve_add(hc, hue, hslcurve_interp(hc, hue));
+
+	for (i = 0; i < hc->n; i++)
+	{
+		float d = hslcurve_hue_dist(hue, hc->xs[i]);
+		float w = expf(-0.5f * (d / sigma) * (d / sigma));
+		hc->ys[i] = CLAMP(hc->ys[i] + move * w, -1.0f, 1.0f);
+	}
+}
+
+/* Callback : mise à jour du repère de teinte (survol de l'image). NULL = sortie */
+extern void
+rs_toolbox_scalpel_hover(RSToolbox *toolbox, const gfloat rgb[3])
+{
+	g_return_if_fail(RS_IS_TOOLBOX(toolbox));
+	if (!rgb)
+		toolbox->hsl_cursor_hue = -1.0f;
+	else
+		toolbox->hsl_cursor_hue = scalpel_rgb2hue(rgb[0], rgb[1], rgb[2]);
+
+	gint c, s;
+	for (s = 0; s < 3; s++)
+		for (c = 0; c < 3; c++)
+			if (toolbox->hslcurve[s][c])
+				gtk_widget_queue_draw(toolbox->hslcurve[s][c]);
+}
+
+/* Callback molette (mode interactif) : ajuste la courbe du canal actif du
+ * snapshot courant à la teinte du pixel, puis ré-applique l'effet. */
+extern void
+rs_toolbox_scalpel_scroll(RSToolbox *toolbox, const gfloat rgb[3], gdouble delta)
+{
+	g_return_if_fail(RS_IS_TOOLBOX(toolbox));
+	if (!toolbox->photo || delta == 0.0) return;
+
+	gint snapshot = toolbox->selected_snapshot;
+	GtkWidget *nb = toolbox->hsl_notebook[snapshot];
+	if (!GTK_IS_NOTEBOOK(nb)) return;
+	gint channel = gtk_notebook_get_current_page(GTK_NOTEBOOK(nb));
+	if (channel < 0 || channel > 2) return;
+	GtkWidget *da = toolbox->hslcurve[snapshot][channel];
+	if (!da) return;
+	HslCurve *hc = g_object_get_data(G_OBJECT(da), "rs-hslcurve");
+	if (!hc) return;
+
+	hslcurve_load(hc);
+	float hue = scalpel_rgb2hue(rgb[0], rgb[1], rgb[2]);
+	/* Un cran de molette = 1 % (ou 1 ° pour la teinte), converti en unités de
+	 * courbe [-1,1] selon le canal (mêmes constantes que le plugin effects :
+	 * teinte = ±180°, sat = ×(1+v), lum = ×(1+v·0,5)). */
+	float move;
+	if (channel == 0)
+		move = (float)delta / 180.0f;          /* 1° par cran */
+	else if (channel == 1)
+		move = (float)delta * 0.01f;           /* 1 % par cran */
+	else
+		move = (float)delta * 0.02f;           /* 1 % par cran (K_LUM = 0,5) */
+	hslcurve_adjust_gaussian(hc, hue, move);
+	hslcurve_store(hc);
+	toolbox->hsl_cursor_hue = hue; /* le repère suit la teinte ajustée */
+	gtk_widget_queue_draw(da);
+}
+
+/* Callback pointeur on-canvas : renvoie la valeur [-1,1] de la courbe du canal
+ * actif (snapshot courant) à la teinte du pixel, et l'index du canal
+ * (0 = Teinte, 1 = Saturation, 2 = Luminance). FALSE si indisponible. */
+extern gboolean
+rs_toolbox_scalpel_value_at(RSToolbox *toolbox, const gfloat rgb[3], gdouble *value_out, gint *channel_out)
+{
+	g_return_val_if_fail(RS_IS_TOOLBOX(toolbox), FALSE);
+	if (!toolbox->photo || !rgb) return FALSE;
+
+	gint snapshot = toolbox->selected_snapshot;
+	GtkWidget *nb = toolbox->hsl_notebook[snapshot];
+	if (!GTK_IS_NOTEBOOK(nb)) return FALSE;
+	gint channel = gtk_notebook_get_current_page(GTK_NOTEBOOK(nb));
+	if (channel < 0 || channel > 2) return FALSE;
+	GtkWidget *da = toolbox->hslcurve[snapshot][channel];
+	if (!da) return FALSE;
+	HslCurve *hc = g_object_get_data(G_OBJECT(da), "rs-hslcurve");
+	if (!hc) return FALSE;
+
+	hslcurve_load(hc);
+	float hue = scalpel_rgb2hue(rgb[0], rgb[1], rgb[2]);
+	if (value_out) *value_out = hslcurve_interp(hc, hue);
+	if (channel_out) *channel_out = channel;
+	return TRUE;
+}
+
+/* Raccourci ALT+molette : change de page du notebook des courbes du snapshot
+ * courant (+1 ou -1, rebouclage automatique). */
+extern void
+rs_toolbox_scalpel_switch_channel(RSToolbox *toolbox, gint delta)
+{
+	g_return_if_fail(RS_IS_TOOLBOX(toolbox));
+	gint snapshot = toolbox->selected_snapshot;
+	GtkWidget *nb = toolbox->hsl_notebook[snapshot];
+	if (!GTK_IS_NOTEBOOK(nb)) return;
+	if (gtk_notebook_get_n_pages(GTK_NOTEBOOK(nb)) <= 0) return;
+	if (delta > 0)
+		gtk_notebook_next_page(GTK_NOTEBOOK(nb));
+	else if (delta < 0)
+		gtk_notebook_prev_page(GTK_NOTEBOOK(nb));
+}
+
 static gboolean
 hslcurve_draw(GtkWidget *widget, cairo_t *cr, gpointer data)
 {
@@ -2545,6 +2697,25 @@ hslcurve_draw(GtkWidget *widget, cairo_t *cr, gpointer data)
 		cairo_set_source_rgb(cr, 0, 0, 0);
 		cairo_set_line_width(cr, 1.0);
 		cairo_arc(cr, nx, ny, 4.0, 0, 2*M_PI); cairo_stroke(cr);
+	}
+
+	/* Repère de teinte survolée (mode interactif) */
+	if (hc->toolbox->hsl_cursor_hue >= 0.0f)
+	{
+		double hue = CLAMP(hc->toolbox->hsl_cursor_hue, 0.0, 0.9999);
+		double mx = hue * W;
+		float val = hslcurve_interp(hc, hue);
+		double my = H/2.0 - val * (H/2.0);
+		cairo_set_line_width(cr, 1.5);
+		cairo_set_source_rgba(cr, 1, 1, 1, 0.9);
+		cairo_move_to(cr, mx, 0); cairo_line_to(cr, mx, H);
+		cairo_stroke(cr);
+		cairo_set_source_rgb(cr, 0.05, 0.05, 0.05);
+		cairo_arc(cr, mx, my, 5.0, 0, 2*M_PI);
+		cairo_fill(cr);
+		cairo_set_source_rgb(cr, 1, 1, 1);
+		cairo_arc(cr, mx, my, 5.0, 0, 2*M_PI);
+		cairo_stroke(cr);
 	}
 	return FALSE;
 }
@@ -2673,6 +2844,19 @@ hsl_enable_toggled(GtkToggleButton *btn, gpointer user_data)
 	toolbox->mute_from_photo = FALSE;
 }
 
+/* Callback : (dé)activation du mode interactif Color scalpel (survol + molette
+ * sur l'image) → pilote la visionneuse. L'effet n'a pas besoin d'être activé :
+ * on ajuste la courbe du canal actif du snapshot courant. */
+static void
+hsl_interactive_toggled(GtkToggleButton *btn, gpointer user_data)
+{
+	RSToolbox *toolbox = RS_TOOLBOX(user_data);
+	if (toolbox->preview)
+		rs_preview_widget_set_scalpel_interactive(RS_PREVIEW_WIDGET(toolbox->preview),
+			gtk_toggle_button_get_active(btn));
+	rs_toolbox_scalpel_hover(toolbox, NULL);
+}
+
 static GtkWidget *
 new_tones_page(RSToolbox *toolbox, const gint snapshot)
 {
@@ -2752,6 +2936,7 @@ new_tones_page(RSToolbox *toolbox, const gint snapshot)
 	gtk_box_pack_start(GTK_BOX(hsl_vbox), toolbox->hsl_enable[snapshot], FALSE, FALSE, 0);
 
 	GtkWidget *hsl_nb = gtk_notebook_new();
+	toolbox->hsl_notebook[snapshot] = hsl_nb;
 	const gchar *cnames[3] = { _("Teinte"), _("Saturation"), _("Luminance") };
 	const gchar *cprops[3] = { "hsl-hue-curve", "hsl-sat-curve", "hsl-lum-curve" };
 	gint c;
@@ -2762,6 +2947,19 @@ new_tones_page(RSToolbox *toolbox, const gint snapshot)
 			gtk_label_new(cnames[c]));
 	}
 	gtk_box_pack_start(GTK_BOX(hsl_vbox), hsl_nb, FALSE, FALSE, 0);
+
+	/* Mode interactif : survoler l'image pour voir la teinte, molette pour ajuster */
+	toolbox->hsl_interactive[snapshot] = gtk_toggle_button_new_with_mnemonic(_("Survol + molette sur l'image"));
+	gtk_widget_set_sensitive(toolbox->hsl_interactive[snapshot], FALSE);
+	gtk_widget_set_tooltip_text(toolbox->hsl_interactive[snapshot],
+		_("Survolez l'image : un repère vertical apparaît sur la courbe à la teinte "
+		  "du pixel. Molette au-dessus de l'image : ajuste la courbe du canal actif "
+		  "autour de cette teinte (Ctrl = fin, Maj = rapide). ALT + molette : "
+		  "change de page (Teinte / Saturation / Luminance)."));
+	g_signal_connect(toolbox->hsl_interactive[snapshot], "toggled",
+		G_CALLBACK(hsl_interactive_toggled), toolbox);
+	gtk_box_pack_start(GTK_BOX(hsl_vbox), toolbox->hsl_interactive[snapshot], FALSE, FALSE, 0);
+
 	{ gchar *t = cs_stage_title(3, 5, _("Color scalpel")); /* D — effets */
 	  gtk_box_pack_start(GTK_BOX(vbox), gui_box(t, hsl_vbox, "show_colorzones", TRUE), FALSE, FALSE, 0); g_free(t); }
 
@@ -3327,6 +3525,12 @@ photo_finalized(gpointer data, GObject *where_the_object_was)
 		}
 		if (toolbox->hsl_enable[snapshot])
 			gtk_widget_set_sensitive(toolbox->hsl_enable[snapshot], FALSE);
+		if (toolbox->hsl_interactive[snapshot])
+		{
+			gtk_widget_set_sensitive(toolbox->hsl_interactive[snapshot], FALSE);
+			if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(toolbox->hsl_interactive[snapshot])))
+				gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(toolbox->hsl_interactive[snapshot]), FALSE);
+		}
 		for(i=0;i<3;i++)
 			if (toolbox->hslcurve[snapshot][i])
 				gtk_widget_set_sensitive(toolbox->hslcurve[snapshot][i], FALSE);
@@ -3334,6 +3538,7 @@ photo_finalized(gpointer data, GObject *where_the_object_was)
 		rs_curve_widget_add_knot(RS_CURVE_WIDGET(toolbox->curve[snapshot]), 0.0,0.0);
 		rs_curve_widget_add_knot(RS_CURVE_WIDGET(toolbox->curve[snapshot]), 1.0,1.0);
 	}
+	toolbox->hsl_cursor_hue = -1.0f;
 }
 
 static void
@@ -3669,6 +3874,8 @@ rs_toolbox_set_photo(RSToolbox *toolbox, RS_PHOTO *photo)
 			}
 			if (toolbox->hsl_enable[snapshot])
 				gtk_widget_set_sensitive(toolbox->hsl_enable[snapshot], TRUE);
+			if (toolbox->hsl_interactive[snapshot])
+				gtk_widget_set_sensitive(toolbox->hsl_interactive[snapshot], TRUE);
 			for(i=0;i<3;i++)
 				if (toolbox->hslcurve[snapshot][i])
 					gtk_widget_set_sensitive(toolbox->hslcurve[snapshot][i], TRUE);
