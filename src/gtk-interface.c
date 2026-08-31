@@ -1548,6 +1548,17 @@ cs_zoom_100(GtkButton *button, gpointer user_data)
 	rs_preview_widget_set_zoom(RS_PREVIEW_WIDGET(user_data), 1.0);
 }
 
+/* CaraStudio : retour à la photo entière. Pendant du bouton 100 % : on fait
+ * l'aller-retour en permanence, il faut les deux sur la barre (issue #33).
+ * On appelle directement le mode « ajusté », pas l'action ZommToFit, qui est
+ * une BASCULE : depuis un zoom variable elle est déjà cochée et ne ferait
+ * rien (ou pire, sortirait du mode ajusté). */
+static void
+cs_zoom_fit(GtkButton *button, gpointer user_data)
+{
+	rs_preview_widget_set_zoom_to_fit(RS_PREVIEW_WIDGET(user_data), TRUE);
+}
+
 /* CaraStudio : entrer en recadrage/redressement depuis la barre. Les contrôles
  * (Format/Grille/Appliquer) sont dans le module de l'onglet Outils, on lève donc
  * cet onglet et on déplie le module pour qu'ils soient visibles immédiatement. */
@@ -1963,14 +1974,18 @@ gui_init(int argc, char **argv, RS_BLOB *rs)
 		GtkWidget *btn_zoom_out = gtk_button_new_from_icon_name("zoom-out",        GTK_ICON_SIZE_LARGE_TOOLBAR);
 		GtkWidget *btn_zoom_100 = gtk_button_new_from_icon_name("zoom-original",   GTK_ICON_SIZE_LARGE_TOOLBAR);
 		GtkWidget *btn_zoom_in  = gtk_button_new_from_icon_name("zoom-in",         GTK_ICON_SIZE_LARGE_TOOLBAR);
+		GtkWidget *btn_zoom_fit = gtk_button_new_from_icon_name("zoom-fit-best",   GTK_ICON_SIZE_LARGE_TOOLBAR);
 		gtk_widget_set_tooltip_text(btn_zoom_out, _("Dézoomer"));
 		gtk_widget_set_tooltip_text(btn_zoom_100, _("Zoom 100% (taille réelle)"));
 		gtk_widget_set_tooltip_text(btn_zoom_in,  _("Zoomer"));
+		gtk_widget_set_tooltip_text(btn_zoom_fit, _("Photo entière (ajuster à la fenêtre)"));
 		g_signal_connect(btn_zoom_out, "clicked", G_CALLBACK(cs_zoom_out), rs->preview);
 		g_signal_connect(btn_zoom_100, "clicked", G_CALLBACK(cs_zoom_100), rs->preview);
 		g_signal_connect(btn_zoom_in,  "clicked", G_CALLBACK(cs_zoom_in),  rs->preview);
+		g_signal_connect(btn_zoom_fit, "clicked", G_CALLBACK(cs_zoom_fit), rs->preview);
 		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_zoom_out, FALSE, FALSE, 0);
 		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_zoom_100, FALSE, FALSE, 0);
+		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_zoom_fit, FALSE, FALSE, 0);
 		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_zoom_in,  FALSE, FALSE, 0);
 
 		/* CaraStudio : séparateur + boutons Redresser / Recadrer. Ils entrent en
