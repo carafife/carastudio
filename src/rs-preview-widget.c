@@ -2137,6 +2137,19 @@ motion(GtkWidget *widget, GdkEventMotion *event, gpointer user_data)
 	/* CaraStudio: pan au bouton du milieu */
 	if ((mask & GDK_BUTTON2_MASK) && (preview->state == MOVE))
 	{
+		/* Mode Color scalpel : on sort d'ici sans passer par le bloc de survol,
+		 * donc le pointeur dessiné ne suivrait pas la souris — il resterait figé
+		 * au point d'appui pendant tout le déplacement, et le curseur natif,
+		 * rétabli en croix par button(), ne serait plus jamais re-masqué ensuite
+		 * (le masquage n'a lieu qu'à l'ENTRÉE du survol). On retire donc le
+		 * pointeur le temps du déplacement : la croix reprend la main, et le
+		 * survol se réarme tout seul au premier mouvement libre. */
+		if (preview->scalpel_hover)
+		{
+			preview->scalpel_hover = FALSE;
+			rs_toolbox_scalpel_hover(preview->toolbox, NULL);
+		}
+
 		gdouble upper_h = gtk_adjustment_get_upper(preview->hadjustment);
 		gdouble upper_v = gtk_adjustment_get_upper(preview->vadjustment);
 		gdouble page_h  = gtk_adjustment_get_page_size(preview->hadjustment);
