@@ -29,6 +29,22 @@
   </description>
   <url type="homepage">https://github.com/carafife/CaraStudio</url>
   <releases>
+    <release version="2026.08.6" date="2026-08-31">
+      <description>
+        <p>
+          Zoom: clicking the 100% button right after opening a photo no longer
+          left the preview blank. Showing the scroll bars shrank the canvas,
+          which reset the resampling target back to the fit-to-window size while
+          the bars kept the 100% range, so the image was drawn far outside the
+          visible area. A new "whole photo" button sits next to the 100% one, to
+          go back to the overall view in a single click. Color scalpel: a new
+          interactive mode, contributed by Christian Bouhon, lets you hover the
+          image to read a pixel's hue and turn the mouse wheel to adjust the
+          active curve around that hue, with an on-canvas pointer showing the
+          colour before and after correction.
+        </p>
+      </description>
+    </release>
     <release version="2026.08.5" date="2026-08-25">
       <description>
         <p>

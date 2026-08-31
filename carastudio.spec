@@ -1,6 +1,6 @@
 
 Name:           carastudio
-Version:        2026.08.5
+Version:        2026.08.6
 Release:        1%{?dist}
 Summary:        Convivial raw photo developer (a beefed-up fork of RawStudio)
 
@@ -92,6 +92,21 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop || :
 %{_datadir}/pixmaps/%{name}/
 
 %changelog
+* Mon Aug 31 2026 Carafife <carafife@users.noreply.github.com> - 2026.08.6-1
+- Zoom : le premier clic sur 100 % après l'ouverture d'une photo n'affichait
+  plus rien. Afficher les barres de défilement rétrécissait le canvas, ce qui
+  remettait la cible du rééchantillonnage à la taille « ajustée » alors que les
+  barres gardaient la course du 100 % : l'image était dessinée hors de la zone
+  visible.
+- Nouveau bouton « photo entière » à côté du 100 %, pour revenir à la vue
+  d'ensemble d'un clic.
+- Color scalpel : nouveau mode interactif (contribution de Christian Bouhon).
+  Survolez l'image pour lire la teinte d'un pixel, molette pour ajuster la
+  courbe du canal actif autour de cette teinte ; un pointeur sur l'image montre
+  la couleur avant et après correction.
+- Aide : nouvelles sections sur le zoom et sur le mode interactif du Color
+  scalpel, en français et en anglais.
+
 * Tue Aug 25 2026 Carafife <carafife@users.noreply.github.com> - 2026.08.5-1
 - Bande d'images : plus de zone grise sous les vignettes pendant leur
   chargement. La vignette d'attente occupe désormais la place exacte d'une

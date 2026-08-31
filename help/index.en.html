@@ -205,13 +205,23 @@
 <ul>
   <li><b>Film strip</b> / <b>Tool panel</b>: show or hide these areas (<kbd>Ctrl</kbd>+<kbd>I</kbd> / <kbd>Ctrl</kbd>+<kbd>T</kbd>).</li>
   <li><b>Enfuse</b> (sun icon): blends the selected photos (see <a href="#enfuse">Exposure blending</a>).</li>
-  <li><b>Fullscreen</b> (<kbd>F11</kbd>), <b>zoom</b> buttons, <b>Crop</b>, <b>Split views</b>.</li>
+  <li><b>Fullscreen</b> (<kbd>F11</kbd>), <b>zoom</b> buttons (see below), <b>Crop</b>, <b>Split views</b>.</li>
   <li><b>Thumbnail info</b>: shows or hides the text (filename) under the thumbnails.</li>
   <li><b>Non-RAW</b>: shows or hides non-RAW images (JPEG, TIFF, PNG) alongside RAW files in the film strip — the folder reloads on each click.</li>
   <li><b>Pipeline</b> (on the right): opens the legend of the 5 processing stages (see <a href="#pipeline">The pipeline</a>).</li>
   <li>The <b>FR / EN</b> button (on the right) changes the interface language (see <a href="#language">Language</a>).</li>
 </ul>
 <div class="tip"><b>Tip:</b> <kbd>Ctrl</kbd>+<kbd>R</kbd> reloads and refreshes the current folder's display at any time (handy after adding or changing files in the folder).</div>
+<h3>Zoom: the whole picture, or the detail</h3>
+<p>Four buttons, in order: <b>−</b>, <b>1</b>, <b>whole photo</b>, <b>+</b>.</p>
+<table>
+  <tr><th>Button</th><th>What it does</th></tr>
+  <tr><td><b>1</b></td><td>Shows the image at <b>100%</b> — one photo pixel per screen pixel. It is the only scale at which sharpness and noise can be judged.</td></tr>
+  <tr><td><b>Whole photo</b> (four corners)</td><td>Fits the entire image back into the window. It is the counterpart of the 100% button: you go back and forth between the two constantly.</td></tr>
+  <tr><td><b>−</b> and <b>+</b></td><td>Gradual zoom, in steps, around the current level.</td></tr>
+</table>
+<p>The <b>mouse wheel</b> over the image also zooms, centred on the pointer. When the image is larger than the window, hold the <b>middle button</b> and move the mouse to pan around it.</p>
+<div class="tip"><b>Good to know:</b> zoom is capped at <b>200%</b>. Beyond that the preview would have to recompute the whole image at the requested scale, which would get very slow without showing anything more: at 100% you already see every pixel in the file.</div>
 <h3>Compare before/after: the A / B / C snapshots</h3>
 <p>At the top of the tool panel, three buttons <b>A</b>, <b>B</b>, <b>C</b> are independent <b>snapshots</b> of your settings. Adjust the photo in A, switch to B to try another version: you can compare two developments of the same image. The <b>Split views</b> button (<kbd>Ctrl</kbd>+<kbd>D</kbd>) shows two versions side by side.</p>
 <h3>Lights Out</h3>
@@ -479,6 +489,20 @@
   <tr><td>Right-click</td><td>Resets the curve to <b>flat</b> (neutral) — handy to start over if you aimed at the wrong zone.</td></tr>
 </table>
 <div class="tip"><b>Halos in the highlights?</b> On a sunset or a very dense sky, pushing a hue's <b>Luminance</b> hard can create a faint bright ring (colours near white are unstable there). CaraStudio already limits the effect near white; if a halo persists, ease off or work the hue/saturation instead.</div>
+<h3>Correcting straight on the image (hover + wheel)</h3>
+<p>Setting a curve means knowing <i>where</i>, on the spectrum, the colour you want to change sits. The <b>Hover + wheel on the image</b> button removes that question: you point at the colour on the photo, and the curve follows.</p>
+<p>First tick <b>Enable Color scalpel</b>, then the <b>Hover + wheel on the image</b> button. Move the pointer over the photo: a <b>vertical marker</b> appears on the curve, at the hue of the pixel under the cursor. A <b>pointer</b> appears on the image with two concentric circles — the outer one shows the colour <b>before</b> correction, the inner one <b>after</b> — plus a numeric badge.</p>
+<table>
+  <tr><th>Gesture</th><th>Action</th></tr>
+  <tr><td>Wheel over the image</td><td>Adjusts the active channel's curve around the hovered hue. One notch = 1% (or 1° on Hue).</td></tr>
+  <tr><td><b>Shift</b> + wheel</td><td>Fast adjustment (×4).</td></tr>
+  <tr><td><b>Ctrl</b> + wheel</td><td>Fine adjustment (0.1% or 0.1° per notch).</td></tr>
+  <tr><td><b>Alt</b> + wheel</td><td>Switches channel: Hue → Saturation → Luminance.</td></tr>
+  <tr><td>Middle button</td><td>Pans the image as usual; the pointer returns as soon as you release.</td></tr>
+</table>
+<p>The correction does not apply to the targeted hue alone but <b>spreads gently onto neighbouring hues</b> (roughly 35° either side), so the edit stays natural, with no break between two close colours.</p>
+<div class="tip"><b>The number freezes but the image keeps changing?</b> That is expected. Each channel has a maximum amplitude — <b>±180°</b> on Hue, <b>±100%</b> on Saturation, <b>±50%</b> on Luminance (that is, luminance multiplied by 1.5). Once the targeted hue is maxed out, the neighbouring hues keep rising: the displayed value stops moving while the effect widens.</div>
+<div class="tip"><b>A bit slow at 100%?</b> In this mode every mouse move re-reads the colours from the developed image. On a large file shown at 100%, the pointer may lag slightly. Look for the colour in <b>whole photo</b> view, then switch back to 100% to check the result.</div>
 </section>
 
 <section id="styles">

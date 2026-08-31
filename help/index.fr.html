@@ -205,13 +205,23 @@
 <ul>
   <li><b>Bande d'images</b> / <b>Panneau d'outils</b> : affichent ou masquent ces zones (<kbd>Ctrl</kbd>+<kbd>I</kbd> / <kbd>Ctrl</kbd>+<kbd>T</kbd>).</li>
   <li><b>Enfuse</b> (icône soleil) : fusionne les photos sélectionnées (voir <a href="#enfuse">Fusion d'expositions</a>).</li>
-  <li><b>Plein écran</b> (<kbd>F11</kbd>), boutons de <b>zoom</b>, <b>Recadrer</b>, <b>Séparer les vues</b>.</li>
+  <li><b>Plein écran</b> (<kbd>F11</kbd>), boutons de <b>zoom</b> (voir ci-dessous), <b>Recadrer</b>, <b>Séparer les vues</b>.</li>
   <li><b>Infos vignettes</b> : affiche ou masque le texte (nom de fichier) sous les vignettes.</li>
   <li><b>Non-RAW</b> : affiche ou masque les images non-RAW (JPEG, TIFF, PNG) à côté des RAW dans la bande d'images — à chaque clic, le dossier se recharge.</li>
   <li><b>Pipeline</b> (à droite) : ouvre la légende des 5 étapes de traitement (voir <a href="#pipeline">Le pipeline</a>).</li>
   <li>Le bouton <b>FR / EN</b> (à droite) change la langue de l'interface (voir <a href="#langue">Langue</a>).</li>
 </ul>
 <div class="tip"><b>Astuce :</b> <kbd>Ctrl</kbd>+<kbd>R</kbd> recharge et rafraîchit l'affichage du dossier courant à tout moment (pratique après avoir ajouté ou modifié des fichiers dans le dossier).</div>
+<h3>Zoom : voir l'ensemble, voir le détail</h3>
+<p>Quatre boutons, dans l'ordre : <b>−</b>, <b>1</b>, <b>photo entière</b>, <b>+</b>.</p>
+<table>
+  <tr><th>Bouton</th><th>Ce qu'il fait</th></tr>
+  <tr><td><b>1</b></td><td>Affiche l'image à <b>100 %</b> — un pixel de la photo pour un pixel de l'écran. C'est la seule échelle où juger la netteté et le bruit.</td></tr>
+  <tr><td><b>Photo entière</b> (quatre coins)</td><td>Ramène l'image entière dans la fenêtre. C'est le pendant du bouton 100 % : on fait l'aller-retour entre les deux en permanence.</td></tr>
+  <tr><td><b>−</b> et <b>+</b></td><td>Zoom progressif, par paliers, autour du niveau affiché.</td></tr>
+</table>
+<p>La <b>molette</b> sur l'image zoome aussi, en se centrant sur le curseur. Quand l'image dépasse la fenêtre, maintenez le <b>bouton du milieu</b> et déplacez la souris pour vous promener dedans.</p>
+<div class="tip"><b>À savoir :</b> le zoom est plafonné à <b>200 %</b>. Au-delà, l'aperçu devrait recalculer toute l'image à l'échelle demandée, ce qui deviendrait très lent sans rien montrer de plus : à 100 % vous voyez déjà tous les pixels du fichier.</div>
 <h3>Comparer avant/après : les instantanés A / B / C</h3>
 <p>En haut du panneau d'outils, trois boutons <b>A</b>, <b>B</b>, <b>C</b> sont des <b>instantanés</b> de réglages indépendants. Réglez la photo en A, basculez en B pour essayer une autre version : vous comparez deux développements de la même image. Le bouton <b>Séparer les vues</b> (<kbd>Ctrl</kbd>+<kbd>D</kbd>) affiche deux versions côte à côte.</p>
 <h3>Lights Out</h3>
@@ -479,6 +489,20 @@
   <tr><td>Clic droit</td><td>Remet la courbe <b>à plat</b> (neutre) — pratique pour repartir de zéro si on a visé la mauvaise zone.</td></tr>
 </table>
 <div class="tip"><b>Halos dans les hautes lumières ?</b> Sur un coucher de soleil ou un ciel très dense, pousser fort la <b>Luminance</b> d'une teinte peut faire apparaître un léger anneau lumineux (les couleurs proches du blanc y sont instables). CaraStudio limite déjà l'effet près du blanc ; si un halo persiste, dosez plus doucement ou travaillez plutôt la teinte/saturation.</div>
+<h3>Corriger directement sur l'image (survol + molette)</h3>
+<p>Régler une courbe demande de savoir <i>où</i> se trouve, sur le spectre, la couleur que l'on veut changer. Le bouton <b>Survol + molette sur l'image</b> supprime cette question : vous désignez la couleur du doigt, sur la photo, et la courbe suit.</p>
+<p>Cochez d'abord <b>Activer Color scalpel</b>, puis le bouton <b>Survol + molette sur l'image</b>. Promenez le curseur sur la photo : un <b>repère vertical</b> se place sur la courbe, à la teinte du pixel survolé. Un <b>pointeur</b> apparaît sur l'image, avec deux cercles concentriques — l'extérieur montre la couleur <b>avant</b> correction, l'intérieur la couleur <b>après</b> — et une pastille chiffrée.</p>
+<table>
+  <tr><th>Geste</th><th>Action</th></tr>
+  <tr><td>Molette sur l'image</td><td>Ajuste la courbe du canal actif autour de la teinte survolée. Un cran = 1 % (ou 1° en Teinte).</td></tr>
+  <tr><td><b>Maj</b> + molette</td><td>Réglage rapide (×4).</td></tr>
+  <tr><td><b>Ctrl</b> + molette</td><td>Réglage fin (0,1 % ou 0,1° par cran).</td></tr>
+  <tr><td><b>Alt</b> + molette</td><td>Change de canal : Teinte → Saturation → Luminance.</td></tr>
+  <tr><td>Bouton du milieu</td><td>Déplace l'image comme d'habitude ; le pointeur revient dès que vous relâchez.</td></tr>
+</table>
+<p>La correction ne s'applique pas à la seule teinte visée mais <b>s'étale doucement sur les teintes voisines</b> (sur environ 35° de part et d'autre) : la retouche reste naturelle, sans cassure entre deux couleurs proches.</p>
+<div class="tip"><b>Le chiffre se fige mais l'image continue de changer ?</b> C'est normal. Chaque canal a une amplitude maximale — <b>±180°</b> en Teinte, <b>±100 %</b> en Saturation, <b>±50 %</b> en Luminance (soit une luminance multipliée par 1,5). Une fois la teinte visée à fond, les teintes voisines, elles, continuent de monter : la valeur affichée ne bouge plus, l'effet s'élargit.</div>
+<div class="tip"><b>Un peu lent à 100 % ?</b> Dans ce mode, chaque déplacement de la souris relit les couleurs dans l'image développée. Sur un gros fichier affiché à 100 %, le pointeur peut traîner un peu. Travaillez plutôt en <b>photo entière</b> pour chercher la couleur, et repassez à 100 % pour vérifier le résultat.</div>
 </section>
 
 <section id="styles">
