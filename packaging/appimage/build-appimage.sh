@@ -189,6 +189,33 @@ export LIBOVERLAY_SCROLLBAR=0
 # éditeur RAW n'a pas besoin de ces modules (TLS/gvfs/dconf). Marchait « par
 # chance » sur Fedora (chemin de modules différent, donc rien n'était chargé).
 export GIO_MODULE_DIR="${APPDIR}/usr/lib/gio/modules"
+# Repli pour les distributions SANS systemd (Void Linux/runit, issue #36).
+# libsystemd/libudev/libblkid/libmount sont couplées à l'hôte : on ne veut PAS
+# les nôtres quand l'hôte en a. Mais si elles manquent, le binaire ne démarre
+# même pas (« libsystemd.so.0: cannot open shared object file »). On n'ajoute
+# donc usr/lib/fallback au chemin que dans ce cas — et en fin de chemin, pour
+# que rien d'autre ne s'y substitue.
+# Ordre voulu : d'abord les répertoires standards (test bash PUR, aucun
+# processus externe), ldconfig seulement si ça n'a rien donné. Sinon on lance
+# ldconfig+grep à chaque démarrage AVEC le LD_LIBRARY_PATH du bundle déjà posé :
+# ces binaires de l'hôte chargent alors notre libpcre2/libselinux et polluent la
+# sortie de « no version information available ». Toute la redirection stderr
+# est là pour la même raison.
+_cs_have_lib() {
+    for _d in /lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu \
+              /lib64 /usr/lib64 /usr/lib /lib; do
+        [ -e "$_d/$1" ] && return 0
+    done
+    # Chemins non standards (/etc/ld.so.conf.d) : on interroge le cache.
+    ldconfig -p 2>/dev/null | grep -q "[[:space:]]$1[[:space:]]" 2>/dev/null
+}
+for _l in libsystemd.so.0 libudev.so.1 libblkid.so.1 libmount.so.1; do
+    if [ -d "${APPDIR}/usr/lib/fallback/$_l" ] && ! _cs_have_lib "$_l"; then
+        export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${APPDIR}/usr/lib/fallback/$_l"
+    fi
+done
+unset -f _cs_have_lib
+unset _l _d
 HOOK
 mkdir -p "$A/usr/lib/gio/modules"   # dossier de modules GIO bundlé, laissé VIDE
 
@@ -220,13 +247,51 @@ echo "== Neutralise le GTK_THEME forcé par le plugin gtk =="
 GTKHOOK="$A/apprun-hooks/linuxdeploy-plugin-gtk.sh"
 [ -f "$GTKHOOK" ] && sed -i 's|^export GTK_THEME=|#[CaraStudio] laisse theme.css piloter le thème:\n#export GTK_THEME=|' "$GTKHOOK"
 
-echo "== Retrait des libs système-couplées (viennent du système hôte) =="
+echo "== Libs système-couplées mises de côté en repli =="
 # libselinux reste bundlée : la libgio d'Ubuntu la référence en NEEDED et les
 # distros sans SELinux (Arch…) ne l'ont pas. Elle ne dépend que de libc et
-# libpcre2 (déjà bundlée). Les autres (mount/blkid/udev/systemd) existent
-# partout où la glibc 2.31 tourne.
-( cd "$A/usr/lib" && rm -f libblkid.so.1 libmount.so.1 \
-                           libsystemd.so.0 libudev.so.1 )
+# libpcre2 (déjà bundlée).
+#
+# Les autres (mount/blkid/udev/systemd) dialoguent avec l'hôte (ses démons, sa
+# base /run/udev) : il faut TOUJOURS préférer celles du système quand elles
+# existent — une libudev 2020 bundlée lirait mal la base d'un udev récent.
+# Mais elles n'existent pas partout : Void Linux utilise runit à la place de
+# systemd et n'a aucune libsystemd (issue #36) → au lancement :
+#   « libsystemd.so.0: cannot open shared object file ».
+# On ne les SUPPRIME donc plus : on les met de côté dans usr/lib/fallback/<lib>/,
+# UN SOUS-DOSSIER PAR BIBLIOTHÈQUE, que le hook AppRun n'ajoute au chemin QUE
+# si l'hôte ne fournit pas CETTE lib précise. Un dossier commun ferait masquer
+# la libudev/libblkid de l'hôte par nos versions de 2020 dès qu'UNE seule des
+# quatre manque — exactement ce qu'on veut éviter. Comportement inchangé sur
+# les distros à systemd, lancement réparé ailleurs, pour ~400 Ko.
+( cd "$A/usr/lib" && for L in libblkid.so.1 libmount.so.1 \
+                              libsystemd.so.0 libudev.so.1; do
+      [ -e "$L" ] || continue
+      mkdir -p "fallback/$L" && mv -f "$L" "fallback/$L/"
+  done ) || true
+ls -1 "$A/usr/lib/fallback" 2>/dev/null | sed 's/^/  repli : /'
+# Le repli n'a de sens que s'il est AUTONOME : sur un hôte sans systemd, les
+# dépendances propres de libsystemd (liblzma, liblz4, libgcrypt…) ne sont pas
+# garanties non plus. linuxdeploy les a normalement tirées dans usr/lib en
+# déployant libsystemd — on le VÉRIFIE ici plutôt que de le découvrir chez un
+# utilisateur (issue #36), et on échoue le build sinon.
+# NB : chaque repli est testé avec usr/lib + SON SEUL dossier, comme au
+# runtime — libmount tirant libblkid, celle-ci doit rester joignable via
+# usr/lib ou le système, pas via un dossier de repli voisin.
+MISSING=$(for d in "$A"/usr/lib/fallback/*/; do
+    [ -d "$d" ] || continue
+    for f in "$d"*.so.*; do
+        [ -e "$f" ] || continue
+        LD_LIBRARY_PATH="$A/usr/lib:$d" ldd "$f" 2>/dev/null \
+            | awk '/not found/ {print $1}'
+    done
+done | sort -u)
+if [ -n "$MISSING" ]; then
+    echo "ERREUR: dépendances du repli absentes du bundle :" >&2
+    echo "$MISSING" | sed 's/^/  /' >&2
+    exit 1
+fi
+echo "Repli autonome : toutes les dépendances sont dans le bundle."
 
 echo "== Empaquetage =="
 appimagetool.AppImage "$A" /root/CaraStudio-x86_64.AppImage
