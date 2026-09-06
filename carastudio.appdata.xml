@@ -29,6 +29,21 @@
   </description>
   <url type="homepage">https://github.com/carafife/CaraStudio</url>
   <releases>
+    <release version="2026.09.1" date="2026-09-06">
+      <description>
+        <p>
+          AppImage: fixed startup on distributions that do not use systemd, such
+          as Void Linux with runit. The AppImage used to drop libsystemd, libudev,
+          libblkid and libmount from its bundle, assuming the host would always
+          provide them. But the bundled libdbus, built on a systemd-based base,
+          requires libsystemd.so.0, so on a system without systemd the program
+          did not start at all. These libraries are now kept as a fallback, each
+          in its own directory, and added to the library path only when the host
+          does not provide them. On systemd distributions nothing changes: the
+          system copies are still the ones being used.
+        </p>
+      </description>
+    </release>
     <release version="2026.08.6" date="2026-08-31">
       <description>
         <p>

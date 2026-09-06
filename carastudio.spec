@@ -1,6 +1,6 @@
 
 Name:           carastudio
-Version:        2026.08.6
+Version:        2026.09.1
 Release:        1%{?dist}
 Summary:        Convivial raw photo developer (a beefed-up fork of RawStudio)
 
@@ -92,6 +92,17 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop || :
 %{_datadir}/pixmaps/%{name}/
 
 %changelog
+* Sun Sep 06 2026 Carafife <carafife@users.noreply.github.com> - 2026.09.1-1
+- AppImage : lancement réparé sur les distributions sans systemd (Void Linux,
+  qui utilise runit). L'AppImage retirait libsystemd, libudev, libblkid et
+  libmount de son paquet en supposant que le système les fournirait toujours.
+  Or la libdbus embarquée, compilée sur une base à systemd, réclame
+  libsystemd.so.0 : sur un système sans systemd le programme ne démarrait pas
+  du tout. Ces bibliothèques sont désormais conservées en repli, chacune dans
+  son propre dossier, et ajoutées au chemin uniquement lorsque le système ne
+  les fournit pas. Sur les distributions à systemd, rien ne change : ce sont
+  toujours celles du système qui servent.
+
 * Mon Aug 31 2026 Carafife <carafife@users.noreply.github.com> - 2026.08.6-1
 - Zoom : le premier clic sur 100 % après l'ouverture d'une photo n'affichait
   plus rien. Afficher les barres de défilement rétrécissait le canvas, ce qui
