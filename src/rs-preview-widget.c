@@ -3159,14 +3159,15 @@ scalpel_draw_correction_cursor(cairo_t *cr, gdouble x, gdouble y, gdouble zoom_s
 	const gdouble setting_offset = (outer_radius + 4.0 * padding) / zoom_scale;
 	const gdouble fill_width     = 4.0 / zoom_scale;
 
-	/* Coin de tarte : amplitude/direction de la correction */
+	/* Coin de tarte : amplitude/direction de la correction (bornée à [-1, 1], angle max ±90° soit ±π/2) */
 	cairo_set_source_rgb(cr, frame_color[0], frame_color[1], frame_color[2]);
 	cairo_set_line_width(cr, 2.0 * fill_width);
 	cairo_move_to(cr, x - setting_offset, y);
-	if (correction_norm > 0.0f)
-		cairo_arc(cr, x, y, setting_offset, M_PI, M_PI + correction_norm * M_PI_4);
+	gfloat norm = CLAMP(correction_norm, -1.0f, 1.0f);
+	if (norm > 0.0f)
+		cairo_arc(cr, x, y, setting_offset, M_PI, M_PI + norm * (M_PI / 2.0));
 	else
-		cairo_arc_negative(cr, x, y, setting_offset, M_PI, M_PI + correction_norm * M_PI_4);
+		cairo_arc_negative(cr, x, y, setting_offset, M_PI, M_PI + norm * (M_PI / 2.0));
 	cairo_stroke(cr);
 
 	/* Barres de référence (niveau « neutre ») */
@@ -3248,14 +3249,16 @@ scalpel_draw_cursor(cairo_t *cr, RSPreviewWidget *preview)
 	const gfloat frame_color[3] = { frame_shade, frame_shade, frame_shade };
 
 	/* Lecture du texte comme dans le plugin : Teinte = ±180° (K_HUE 0,5),
-	 * Saturation = gain ×(1+v), Luminance = gain ×(1+v·0,5). */
+	 * Saturation = gain ×(1+v), Luminance = gain ×(1+v·0,5).
+	 * On borne la valeur affichée à [-1, 1] pour éviter les dépassements. */
 	gchar text[64];
+	gdouble clamped_val = CLAMP(value, -1.0, 1.0);
 	if (channel == 0)
-		g_snprintf(text, sizeof(text), "%+.1f°", value * 180.0);
+		g_snprintf(text, sizeof(text), "%+.1f°", clamped_val * 180.0);
 	else if (channel == 1)
-		g_snprintf(text, sizeof(text), "%+.1f%%", value * 100.0);
+		g_snprintf(text, sizeof(text), "%+.1f%%", clamped_val * 100.0);
 	else
-		g_snprintf(text, sizeof(text), "%+.1f%%", value * 50.0);
+		g_snprintf(text, sizeof(text), "%+.1f%%", clamped_val * 50.0);
 
 	scalpel_draw_correction_cursor(cr, preview->scalpel_hover_x, preview->scalpel_hover_y,
 	                               zoom_scale, (gfloat) value, frame_color, outer_color, inner_color, text);

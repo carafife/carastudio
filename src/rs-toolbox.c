@@ -2576,6 +2576,19 @@ rs_toolbox_scalpel_scroll(RSToolbox *toolbox, const gfloat rgb[3], gdouble delta
 	if (!toolbox->photo || delta == 0.0) return;
 
 	gint snapshot = toolbox->selected_snapshot;
+
+	/* Si l'égaliseur de couleurs (Color scalpel) n'est pas encore activé sur ce snapshot,
+	 * on active automatiquement "hsl-enabled" et la case à cocher correspondante. */
+	gboolean hsl_on = FALSE;
+	g_object_get(toolbox->photo->settings[snapshot], "hsl-enabled", &hsl_on, NULL);
+	if (!hsl_on && toolbox->hsl_enable[snapshot])
+	{
+		toolbox->mute_from_photo = TRUE;
+		g_object_set(toolbox->photo->settings[snapshot], "hsl-enabled", TRUE, NULL);
+		gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(toolbox->hsl_enable[snapshot]), TRUE);
+		toolbox->mute_from_photo = FALSE;
+	}
+
 	GtkWidget *nb = toolbox->hsl_notebook[snapshot];
 	if (!GTK_IS_NOTEBOOK(nb)) return;
 	gint channel = gtk_notebook_get_current_page(GTK_NOTEBOOK(nb));
