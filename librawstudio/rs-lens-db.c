@@ -19,6 +19,7 @@
 
 #include <rawstudio.h>
 #include <lensfun.h>
+#include <string.h>
 #include <libxml/encoding.h>
 #include <libxml/parser.h>
 #include <libxml/xmlwriter.h>
@@ -429,7 +430,7 @@ try_lensfun_autoassign(RSLens *lens, RSMetadata *metadata)
 		return FALSE;
 	rs_lensfun_db_load(lensdb);
 
-	cameras = lf_db_find_cameras(lensdb, metadata->make_ascii, metadata->model_ascii);
+	cameras = rs_lensfun_find_cameras(lensdb, metadata->make_ascii, metadata->model_ascii);
 	if (cameras)
 	{
 		if (metadata->lens_min_focal == metadata->lens_max_focal)
@@ -460,6 +461,35 @@ try_lensfun_autoassign(RSLens *lens, RSMetadata *metadata)
 	lf_db_destroy(lensdb);
 
 	return assigned;
+}
+
+/**
+ * Complète les caractéristiques manquantes d'une fiche d'objectif (#39).
+ *
+ * Les fiches créées avant que la spécification de l'objectif ne soit lue n'ont
+ * ni plage focale ni ouverture : l'éditeur les affiche « -1mm » / « F/-1,0 ».
+ * On ne remplit que ce qui manque : une valeur déjà en base est un fait acquis.
+ */
+static void
+complete_lens_specs(RSLens *lens, RSMetadata *metadata)
+{
+	gdouble min_focal, max_focal, min_aperture, max_aperture;
+
+	g_object_get(lens,
+		     "min-focal", &min_focal,
+		     "max-focal", &max_focal,
+		     "min-aperture", &min_aperture,
+		     "max-aperture", &max_aperture,
+		     NULL);
+
+	if (min_focal <= 0.0 && metadata->lens_min_focal > 0.0)
+		g_object_set(lens, "min-focal", metadata->lens_min_focal, NULL);
+	if (max_focal <= 0.0 && metadata->lens_max_focal > 0.0)
+		g_object_set(lens, "max-focal", metadata->lens_max_focal, NULL);
+	if (min_aperture <= 0.0 && metadata->lens_min_aperture > 0.0)
+		g_object_set(lens, "min-aperture", metadata->lens_min_aperture, NULL);
+	if (max_aperture <= 0.0 && metadata->lens_max_aperture > 0.0)
+		g_object_set(lens, "max-aperture", metadata->lens_max_aperture, NULL);
 }
 
 /**
@@ -509,9 +539,16 @@ RSLens *rs_lens_db_lookup_from_metadata(RSLensDb *lens_db, RSMetadata *metadata)
 		 * « Activer cet objectif », en revanche, conserve l'objectif choisi et
 		 * n'est jamais remis en cause. */
 		if (try_lensfun_autoassign(lens, metadata))
+		{
+			/* Fiche créée par une version qui ne connaissait pas encore la
+			 * spécification de l'objectif : l'éditeur affichait « -1mm » et
+			 * « F/-1,0 » (#39). On la complète au passage, jamais on ne
+			 * l'écrase — d'où les gardes sur les valeurs déjà posées. */
+			complete_lens_specs(lens, metadata);
 			save_db(lens_db); /* rs_lens_db_add_lens() n'est pas appelé ici : sans
 			                     cette écriture, l'association serait refaite à
 			                     chaque ouverture au lieu d'être retenue. */
+		}
 	}
 
 	return lens;
@@ -595,4 +632,73 @@ rs_lensfun_db_load(struct lfDatabase *lensdb)
 	}
 
 	lf_db_load(lensdb);
+}
+
+/**
+ * Cherche un boîtier dans la base lensfun malgré les écarts de nommage (#39).
+ *
+ * lensfun nomme ses boîtiers Canon « Canon EOS R10 » — le fabricant est répété
+ * dans le modèle. L'EXIF, lui, ne donne que « EOS R10 » dès que le modèle est lu
+ * par LibRaw (tous les CR3, et les boîtiers récents en général). Le résultat :
+ * lf_db_find_cameras() ne trouve RIEN, donc pas de reconnaissance automatique
+ * d'objectif (« Objectif inconnu », signalé par Guillaume sur EOS R10), pas de
+ * menu « Utiliser l'objectif » utilisable, et pas de correction appliquée. Le
+ * même fichier ouvert en JPEG marchait, lui : le parseur maison rend
+ * « Canon EOS R10 » — d'où l'impression d'un bug intermittent.
+ *
+ * On retente donc la recherche avec le modèle préfixé du fabricant, puis avec le
+ * préfixe retiré (cas symétrique), puis sans fabricant du tout. Le préfixe testé
+ * est le PREMIER MOT du fabricant : « NIKON CORPORATION » donnerait sinon un
+ * « NIKON CORPORATION Z 5 » qui n'existe nulle part.
+ *
+ * La recherche d'origine reste la première tentative : là où elle fonctionnait
+ * déjà (Sony, Fujifilm…), rien ne change.
+ */
+const lfCamera **
+rs_lensfun_find_cameras(struct lfDatabase *lensdb, const gchar *make, const gchar *model)
+{
+	const lfCamera **cameras = NULL;
+	gchar *first_word = NULL;
+
+	if (!lensdb || !model || !model[0])
+		return NULL;
+
+	cameras = lf_db_find_cameras(lensdb, make, model);
+	if (cameras)
+		return cameras;
+
+	if (make && make[0])
+	{
+		const gchar *space = strchr(make, ' ');
+		first_word = space ? g_strndup(make, space - make) : g_strdup(make);
+	}
+
+	if (first_word && first_word[0])
+	{
+		if (g_ascii_strncasecmp(model, first_word, strlen(first_word)) != 0)
+		{
+			/* « EOS R10 » → « Canon EOS R10 » */
+			gchar *prefixed = g_strdup_printf("%s %s", first_word, model);
+			cameras = lf_db_find_cameras(lensdb, make, prefixed);
+			if (!cameras)
+				cameras = lf_db_find_cameras(lensdb, NULL, prefixed);
+			g_free(prefixed);
+		}
+		else
+		{
+			/* Cas symétrique : « Canon EOS R10 » → « EOS R10 » */
+			const gchar *stripped = model + strlen(first_word);
+			while (*stripped == ' ')
+				stripped++;
+			if (stripped[0])
+				cameras = lf_db_find_cameras(lensdb, make, stripped);
+		}
+	}
+
+	if (!cameras)
+		cameras = lf_db_find_cameras(lensdb, NULL, model);
+
+	g_free(first_word);
+
+	return cameras;
 }

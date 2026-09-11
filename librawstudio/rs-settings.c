@@ -1222,11 +1222,16 @@ do { \
 			gboolean diff = (*tgt_nknots[ch] != src_nknots[ch]);
 			if (!diff && src_knots[ch] && *tgt_knots[ch])
 				diff = (memcmp(src_knots[ch], *tgt_knots[ch], sizeof(gfloat)*2*src_nknots[ch]) != 0);
-			if (diff && src_knots[ch])
+			if (diff)
 			{
+				/* Une source SANS courbe de canal en efface une : sans ce cas,
+				 * revenir à un état qui n'en avait pas laissait celle de la photo
+				 * en place (#41). */
 				g_free(*tgt_knots[ch]);
-				*tgt_knots[ch] = g_memdup(src_knots[ch], sizeof(gfloat)*2*src_nknots[ch]);
-				*tgt_nknots[ch] = src_nknots[ch];
+				*tgt_knots[ch] = src_knots[ch]
+					? g_memdup(src_knots[ch], sizeof(gfloat)*2*src_nknots[ch])
+					: NULL;
+				*tgt_nknots[ch] = src_knots[ch] ? src_nknots[ch] : 0;
 				changed_mask |= MASK_SOFTLIGHT_STRENGTH; /* bit effets → RSEffects recalcule */
 			}
 		}

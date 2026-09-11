@@ -72,12 +72,33 @@ rs_free(RS_BLOB *rs)
 void
 rs_set_photo(RS_BLOB *rs, RS_PHOTO *photo)
 {
+	gint snapshot;
+
 	g_return_if_fail(rs != NULL);
 
 	/* Unref old photo if any */
 	if (rs->photo)
 		g_object_unref(rs->photo);
 	rs->photo = NULL;
+
+	/* Mémoriser les réglages TELS QU'À L'OUVERTURE, pour « Revenir aux anciens
+	 * paramètres » (#41). La photo arrive ici juste après rs_photo_load_from_file(),
+	 * qui a déjà relu le cache : ses réglages sont donc exactement l'état auquel
+	 * l'utilisateur veut pouvoir revenir. */
+	for (snapshot = 0; snapshot < 3; snapshot++)
+	{
+		if (rs->opened_settings[snapshot])
+		{
+			g_object_unref(rs->opened_settings[snapshot]);
+			rs->opened_settings[snapshot] = NULL;
+		}
+		if (photo && photo->settings[snapshot])
+		{
+			rs->opened_settings[snapshot] = rs_settings_new();
+			rs_settings_copy(photo->settings[snapshot], MASK_ALL,
+					 rs->opened_settings[snapshot]);
+		}
+	}
 
 	/* Save photo in blob */
 	rs->photo = photo;
@@ -215,6 +236,11 @@ rs_new(void)
 	rs = g_malloc(sizeof(RS_BLOB));
 	rs->settings_buffer = NULL;
 	rs->photo = NULL;
+	/* g_malloc ne met pas à zéro : sans cette initialisation, rs_set_photo()
+	 * unreferencerait des pointeurs poubelle à la première photo ouverte. */
+	rs->opened_settings[0] = NULL;
+	rs->opened_settings[1] = NULL;
+	rs->opened_settings[2] = NULL;
 	rs->queue = rs_batch_new_queue(rs);
 	rs->current_setting = 0;
 	rs->signal = MAIN_SIGNAL_NONE;
@@ -363,7 +389,7 @@ test(void)
 			}
 
 			/* Test if camera is known in Lensfun */
-			const lfCamera **cameras = lf_db_find_cameras(lensdb, metadata->make_ascii, metadata->model_ascii);
+			const lfCamera **cameras = rs_lensfun_find_cameras(lensdb, metadata->make_ascii, metadata->model_ascii);
 			if (cameras)
 				lensfun_camera_ok = TRUE;
 

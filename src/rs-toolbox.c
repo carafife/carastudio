@@ -315,6 +315,28 @@ cs_make_fold_button(const gchar *icon_name, const gchar *label_text,
 	return btn;
 }
 
+/* Règle un GtkScrolledWindow d'onglet comme celui de l'onglet « Outils » (#40).
+ *
+ * En mode « overlay » (le défaut de GTK3), la glissière verticale ne réserve
+ * aucune place : elle apparaît au survol PAR-DESSUS le contenu, c'est-à-dire sur
+ * la colonne des valeurs, tout à droite. Les valeurs deviennent illisibles et,
+ * surtout, ne sont plus cliquables ni modifiables — signalé par rmc0 sur tous les
+ * onglets sauf « Outils », le seul qui avait reçu le correctif (#30).
+ *
+ * natural_width : demander au panneau sa largeur naturelle pour que la colonne
+ * des valeurs entre dans le cadre au lieu d'être rognée par la place que prend
+ * désormais la glissière. Réservé aux onglets à curseurs ; la grille EXIF, elle,
+ * a des valeurs de longueur arbitraire et élargirait le panneau sans fin.
+ */
+static void
+cs_fix_tab_scroller(GtkScrolledWindow *sw, gboolean natural_width)
+{
+	gtk_scrolled_window_set_policy(sw, GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+	gtk_scrolled_window_set_overlay_scrolling(sw, FALSE);
+	if (natural_width)
+		gtk_scrolled_window_set_propagate_natural_width(sw, TRUE);
+}
+
 /* Fabrique la barre « Tout replier / Tout déplier ». Les boutons agissent sur tous
  * les GtkExpander situés sous fold_root — réutilisable pour chaque onglet à modules
  * (Outils, Effets, Tonalité). */
@@ -3002,7 +3024,7 @@ rs_toolbox_get_tones_widget(RSToolbox *toolbox)
 	 * au-delà de l'écran. */
 	{
 		GtkWidget *sw = gtk_scrolled_window_new(NULL, NULL);
-		gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(sw), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+		cs_fix_tab_scroller(GTK_SCROLLED_WINDOW(sw), TRUE);
 		gtk_container_add(GTK_CONTAINER(sw), notebook);
 		GtkWidget *vbox = gtk_vbox_new(FALSE, 0);
 		gtk_box_pack_start(GTK_BOX(vbox), cs_make_fold_bar(notebook), FALSE, FALSE, 0);
@@ -3028,7 +3050,7 @@ rs_toolbox_get_effects_widget(RSToolbox *toolbox)
 	 * scroll (toujours visible), cf. onglet Tonalité ; seul le notebook défile. */
 	{
 		GtkWidget *sw = gtk_scrolled_window_new(NULL, NULL);
-		gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(sw), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+		cs_fix_tab_scroller(GTK_SCROLLED_WINDOW(sw), TRUE);
 		gtk_container_add(GTK_CONTAINER(sw), notebook);
 		GtkWidget *vbox = gtk_vbox_new(FALSE, 0);
 		gtk_box_pack_start(GTK_BOX(vbox), cs_make_fold_bar(notebook), FALSE, FALSE, 0);
@@ -3290,8 +3312,7 @@ rs_toolbox_get_metadata_widget(RSToolbox *toolbox)
 		G_CALLBACK(exif_search_changed), toolbox);
 	gtk_box_pack_start(GTK_BOX(box), search, FALSE, FALSE, 0);
 
-	gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scroller),
-		GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+	cs_fix_tab_scroller(GTK_SCROLLED_WINDOW(scroller), FALSE);
 	gtk_grid_set_row_spacing(GTK_GRID(grid), 5);
 	gtk_grid_set_column_spacing(GTK_GRID(grid), 12);
 	gtk_container_set_border_width(GTK_CONTAINER(grid), 10);

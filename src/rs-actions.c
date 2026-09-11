@@ -517,7 +517,33 @@ ACTION(copy_image)
 
 ACTION(revert_settings)
 {
-	if (RS_IS_PHOTO(rs->photo))
+	gint snapshot;
+	gboolean reverted = FALSE;
+
+	if (!RS_IS_PHOTO(rs->photo))
+		return;
+
+	/* Revenir aux réglages MÉMORISÉS À L'OUVERTURE de la photo (#41).
+	 *
+	 * Auparavant on rechargeait le fichier de cache. Or ce fichier n'est écrit
+	 * qu'en QUITTANT la photo (rs_photo_close) : sur une photo ouverte pour la
+	 * première fois, il n'existe pas et rs_cache_load() ne faisait rien du tout —
+	 * Ctrl-Z restait sans effet, y compris par le menu. D'où l'impression d'un
+	 * raccourci capricieux, signalée par Guillaume : il marche sur une photo déjà
+	 * visitée (donc déjà enregistrée), pas sur une photo fraîchement ouverte.
+	 *
+	 * L'état d'ouverture est en mémoire, complet (les trois instantanés, courbes
+	 * comprises) et toujours disponible. Repli sur le cache si, pour une raison
+	 * quelconque, il n'a pas pu être mémorisé. */
+	for (snapshot = 0; snapshot < 3; snapshot++)
+		if (rs->opened_settings[snapshot])
+		{
+			rs_photo_apply_settings(rs->photo, snapshot,
+						rs->opened_settings[snapshot], MASK_ALL);
+			reverted = TRUE;
+		}
+
+	if (!reverted)
 		rs_cache_load(rs->photo);
 }
 

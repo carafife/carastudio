@@ -89,6 +89,7 @@ RSLens *rs_lens_db_lookup_from_metadata(RSLensDb *lens_db, RSMetadata *metdata);
 GList *rs_lens_db_get_lenses(RSLensDb *lens_db);
 
 struct lfDatabase;
+struct lfCamera;
 
 /**
  * Charge la base d'objectifs lensfun, base embarquée comprise.
@@ -99,6 +100,18 @@ struct lfDatabase;
  * @param lensdb Une lfDatabase fraîchement créée par lf_db_new()
  */
 void rs_lensfun_db_load(struct lfDatabase *lensdb);
+
+/**
+ * Cherche un boîtier dans la base lensfun en rattrapant les écarts de
+ * nommage entre l'EXIF et lensfun (#39).
+ *
+ * À utiliser partout à la place de lf_db_find_cameras().
+ * @param lensdb Une lfDatabase déjà chargée
+ * @param make Le fabricant tel que lu dans les métadonnées (peut être NULL)
+ * @param model Le modèle tel que lu dans les métadonnées
+ * @return La liste renvoyée par lensfun, à libérer avec lf_free(), ou NULL
+ */
+const struct lfCamera **rs_lensfun_find_cameras(struct lfDatabase *lensdb, const gchar *make, const gchar *model);
 
 G_END_DECLS
 
