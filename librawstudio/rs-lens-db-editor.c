@@ -433,7 +433,7 @@ static void row_clicked (GtkTreeView *tree_view, GtkTreePath *path, GtkTreeViewC
 	else
 	 lens_search = g_strdup_printf("%.0f-%.0f", min_focal, max_focal);
 
-	cameras = lf_db_find_cameras(lensdb, camera_make, camera_model);
+	cameras = rs_lensfun_find_cameras(lensdb, camera_make, camera_model);
 	if (cameras)
 		camera = cameras[0];
 
@@ -809,7 +809,7 @@ static void set_lens (GtkButton *button, SingleLensData *single_lens_data)
 	else
 	 lens_search = g_strdup_printf("%.0f-%.0f", min_focal, max_focal);
 
-	cameras = lf_db_find_cameras(lensdb, camera_make, camera_model);
+	cameras = rs_lensfun_find_cameras(lensdb, camera_make, camera_model);
 	if (cameras)
 		camera = cameras[0];
 

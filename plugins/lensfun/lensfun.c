@@ -519,7 +519,7 @@ get_image(RSFilter *filter, const RSFilterRequest *request)
 		lensfun->neutral_lens = FALSE;
 
 		if (lensfun->make && lensfun->model)
-			cameras = lf_db_find_cameras(lensfun->ldb, lensfun->make, lensfun->model);
+			cameras = rs_lensfun_find_cameras(lensfun->ldb, lensfun->make, lensfun->model);
 
 		if (cameras)
 		{

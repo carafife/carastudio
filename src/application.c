@@ -363,7 +363,7 @@ test(void)
 			}
 
 			/* Test if camera is known in Lensfun */
-			const lfCamera **cameras = lf_db_find_cameras(lensdb, metadata->make_ascii, metadata->model_ascii);
+			const lfCamera **cameras = rs_lensfun_find_cameras(lensdb, metadata->make_ascii, metadata->model_ascii);
 			if (cameras)
 				lensfun_camera_ok = TRUE;
 
