@@ -29,6 +29,28 @@
   </description>
   <url type="homepage">https://github.com/carafife/CaraStudio</url>
   <releases>
+    <release version="2026.09.2" date="2026-09-11">
+      <description>
+        <p>
+          Lens correction: the camera is found in the lensfun database again.
+          lensfun names Canon bodies "Canon EOS R10", repeating the maker inside
+          the model, while the EXIF of a CR3 only says "EOS R10": no camera was
+          matched, so no lens was recognised and no correction applied. Lens
+          entries already stored without a focal range are completed as well.
+        </p>
+        <p>
+          Interface: in the Tone, Effects and Info tabs the vertical scrollbar no
+          longer floats over the column of values, which is readable and
+          clickable again. It now has room of its own, as in the Tools tab.
+        </p>
+        <p>
+          "Revert settings" (Ctrl-Z) now returns to the state the photo had when
+          it was opened. It used to reload the settings file, which is only
+          written when leaving a photo: on a photo opened for the first time that
+          file does not exist yet and the shortcut did nothing at all.
+        </p>
+      </description>
+    </release>
     <release version="2026.09.1" date="2026-09-06">
       <description>
         <p>

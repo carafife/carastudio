@@ -1,6 +1,6 @@
 
 Name:           carastudio
-Version:        2026.09.1
+Version:        2026.09.2
 Release:        1%{?dist}
 Summary:        Convivial raw photo developer (a beefed-up fork of RawStudio)
 
@@ -92,6 +92,20 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop || :
 %{_datadir}/pixmaps/%{name}/
 
 %changelog
+* Fri Sep 11 2026 Carafife <carafife@users.noreply.github.com> - 2026.09.2-1
+- Objectifs : le boîtier est de nouveau retrouvé dans la base lensfun malgré les
+  écarts de nommage. lensfun nomme les boîtiers Canon « Canon EOS R10 », le
+  fabricant répété dans le modèle, alors que l'EXIF des CR3 ne donne que
+  « EOS R10 » : plus aucun boîtier n'était trouvé, donc aucun objectif reconnu
+  et aucune correction appliquée. Les fiches d'objectif déjà en base et
+  incomplètes (« -1mm ») sont complétées au passage.
+- Interface : dans les onglets Tonalité, Effets et Infos, la glissière verticale
+  ne se pose plus par-dessus la colonne des valeurs, qui redevient lisible et
+  cliquable. Elle a sa propre place, comme dans l'onglet Outils.
+- « Revenir aux anciens paramètres » (Ctrl-Z) revient à l'état de la photo à son
+  ouverture. Il rechargeait le fichier de réglages, qui n'est écrit qu'en
+  quittant la photo : sur une photo ouverte pour la première fois, il n'existait
+  pas et le raccourci restait sans effet.
 * Sun Sep 06 2026 Carafife <carafife@users.noreply.github.com> - 2026.09.1-1
 - AppImage : lancement réparé sur les distributions sans systemd (Void Linux,
   qui utilise runit). L'AppImage retirait libsystemd, libudev, libblkid et
