@@ -69,6 +69,11 @@ typedef struct _photo {
 
 typedef struct {
 	RS_PHOTO *photo;
+	/* Réglages de la photo TELS QU'À SON OUVERTURE, pour « Revenir aux anciens
+	 * paramètres » (Ctrl-Z). Voir rs_set_photo() et l'action revert_settings
+	 * (#41) : le fichier de cache ne peut pas jouer ce rôle, il n'est écrit
+	 * qu'en quittant la photo. NULL tant qu'aucune photo n'est ouverte. */
+	RSSettings *opened_settings[3];
 	RSSettings *settings_buffer;
 	RSDcpFile *dcp_buffer;
 	RSIccProfile *icc_buffer;
